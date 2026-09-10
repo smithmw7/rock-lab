@@ -25,6 +25,7 @@ import { SCENE_PRESETS, createScenePreset } from './scene-presets.js';
 import { createSceneGallery } from './scene-gallery.js';
 import { createCameraRig } from './camera-rig.js';
 import { createCameraHUD } from './camera-hud.js';
+import './analytics.js';
 import './style.css';
 import './menu.css';
 import './library.css';

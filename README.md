@@ -106,6 +106,14 @@ npm run preview -- --port 5208
 
 The GitHub Actions workflow builds and deploys `main` to Pages. Relative asset paths support project sites and forks. When forking, enable **Settings → Pages → GitHub Actions** and update the README/social URLs for your fork.
 
+## Analytics
+
+The official Pages site uses the [**Rock Lab** Google Analytics 4 property](https://analytics.google.com/analytics/web/#/a383278263p553725221/reports/intelligenthome) for visits, page views, traffic sources, and engagement. Its public measurement ID, `G-S67KTM7JMZ`, is set through `VITE_GA_MEASUREMENT_ID` in the Pages build workflow. No Firebase SDK or hosting migration is needed.
+
+Tracking only initializes in a production build on `https://smithmw7.github.io/rock-lab/`. Local previews, forks on other domains, automated browsers, missing IDs, and URLs with `?analytics=0` skip the Google tag entirely. Google signals and advertising personalization are disabled. The integration sends no custom parameter, recipe, scene, or interaction events. Enhanced measurement is limited to page loads in the Analytics property.
+
+To reproduce the deployed build locally, run `VITE_GA_MEASUREMENT_ID=G-S67KTM7JMZ npm run build`; localhost still stays untracked. `npm run verify:analytics` checks the tracking gates and application startup with the Google script blocked, without sending test traffic to Google.
+
 ## Export and reuse
 
 **Available today:** recipe JSON and viewport PNG. Recipes restore the intact source with geometry, independent materials, lighting, ground, and fracture settings. Recipes now use version 6. Scene files preserve independent object recipes, names, transforms, selection, snapping, display settings, and the scene environment, alongside the original Object draft. Scenes started in the Gallery also retain their preset identity when saved and imported, including your edits. Undo history, the temporary gallery backup, moving debris, and camera position are not serialized. Versions 1–5 still load into Object mode.

@@ -42,7 +42,8 @@
     "qa:camera": "node scripts/qa-camera.mjs",
     "verify:surface-snap": "node scripts/verify-surface-snap.mjs",
     "qa:surface-snap": "node scripts/qa-surface-snap.mjs",
-    "qa:natural-grounds": "node scripts/qa-natural-grounds.mjs"
+    "qa:natural-grounds": "node scripts/qa-natural-grounds.mjs",
+    "verify:analytics": "node scripts/verify-analytics.mjs"
   },
   "dependencies": {
     "@dgreenheck/three-pinata": "2.0.1",
