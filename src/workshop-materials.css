@@ -1,0 +1,16 @@
+/* Palette cues only. The viewport uses the procedural physical materials. */
+.material-swatch.brushedSteel{background:repeating-linear-gradient(90deg,#8797a5 0 1px,#b4bec7 2px,#8999a8 3px),linear-gradient(130deg,#e6eef3,#526676)}
+.material-swatch.iron{background:radial-gradient(ellipse at 30% 65%,#73452d,transparent 50%),linear-gradient(130deg,#666c6f,#252d32 60%,#727b80)}
+.material-swatch.aluminum{background:linear-gradient(115deg,#85939b,#eef4f7 32%,#aab5bb 57%,#dfe6e9 80%)}
+.material-swatch.chrome{background:linear-gradient(105deg,#10161d 15%,#dbe9f3 29%,#ffffff 33%,#5b7182 39%,#101820 52%,#fff 79%,#788e9f 85%)}
+.material-swatch.copper{background:radial-gradient(ellipse at 10% 82%,#497b6c,transparent 55%),linear-gradient(130deg,#f3c0a1,#ad6746 48%,#603e30 72%,#ecaa81)}
+.material-swatch.bronze{background:linear-gradient(125deg,#e2b17a,#8d643c 40%,#50482f 65%,#bb9461)}
+.material-swatch.brass{background:linear-gradient(120deg,#fff1bc,#cdb35f 35%,#6b6035 61%,#e9d79a)}
+.material-swatch.gold{background:linear-gradient(120deg,#fff1b1,#e7b448 35%,#977125 60%,#ffe39b 87%)}
+.material-swatch.oak{background:repeating-linear-gradient(88deg,#c5914e 0 4px,#b58242 5px,#deae67 7px,#e1b475 10px)}
+.material-swatch.walnut{background:repeating-linear-gradient(88deg,#6d432b 0 4px,#493020 5px,#885838 7px,#976842 11px)}
+.material-swatch.weatheredWood{background:repeating-linear-gradient(88deg,#9d9586 0 4px,#6e695e 5px,#afa593 7px,#8f8777 11px)}
+.material-swatch.terracotta{background:repeating-linear-gradient(0deg,transparent 0 6px,#923f2124 7px 8px),linear-gradient(120deg,#d98961,#a55232 63%,#c87348)}
+.material-swatch.porcelain{background:radial-gradient(ellipse at 32% 22%,#fffef5,transparent 45%),linear-gradient(130deg,#f4eedb,#a8aaa2 68%,#e3e0d1)}
+.material-swatch.celadon{background:radial-gradient(ellipse at 32% 22%,#deeee0,transparent 45%),linear-gradient(130deg,#a9ccb5,#527c67 68%,#92b9a1)}
+.material-swatch.stoneware{background:radial-gradient(#655443 12%,transparent 18%) 0 0/6px 7px,radial-gradient(#76614e 9%,transparent 15%) 3px 2px/7px 5px,linear-gradient(130deg,#d7c8ac,#b3a38a)}

@@ -24,6 +24,7 @@ jobs:
       - run: npm ci
       - run: npm run verify
       - run: npm run verify:kit
+      - run: npm run verify:workshop
       - run: npm run verify:fracture
       - run: npm run build
       - run: npm run verify:publication

@@ -1,6 +1,6 @@
 # Object library
 
-Rock Lab includes **38 procedural objects**. Open **Shape** to browse the full scrolling list. Category filters narrow it to Natural, Primitives, Structures, Architecture, or Furniture. Search matches names and descriptions. Choose a row to generate it with your current material, seed, and surface settings.
+Rock Lab includes **58 procedural objects**. Open **Shape** to browse the full scrolling list. Category filters narrow it to Natural, Primitives, Structures, Architecture, Furniture, Tools, Metal, or Lathe. Search matches names and descriptions. Choose a row to generate it. Workshop objects supply a suggested initial material; the material, seed, and surface settings remain editable.
 
 ## The 20-object expansion
 
@@ -33,10 +33,20 @@ The original eighteen objects remain available: boulder, outcrop, ledge, spire, 
 
 ## Materials, variation, and destruction
 
-All objects use the current outer material and expose the independently selected inner material when fractured. Try limestone architecture, an obsidian table, or a quartz stool. The furniture presets provide geometry; a procedural wood surface is a separate future feature.
+All objects expose the independently selected inner material when fractured. Try limestone architecture, an oak table, or a quartz stool. Tools have separate material pairs for their working end, handle, and fittings. Procedural oak, walnut, and weathered wood are available in the Wood family.
 
 Seed, geometry detail, irregularity, edge bevels, and displacement alter the generated form. The new kit keeps its intended silhouette while varying surface wear. **Variations** compares five seeds. For clean construction pieces, lower irregularity and leave displacement at zero.
 
 Assemblies use separate closed solids for their component parts. Tap one part to break it, or use **Break asset** for the full assembly. Unbroken parts remain fixed in the destruction preview. This is a material and fracture test, not a simulation of structural load or collapse.
 
 Save any new object through **File → Save recipe**. Loading the recipe restores its shape and settings as an intact asset and reveals its selected library row. Recipe JSON and PNG remain the available exports.
+
+## The workshop expansion
+
+| Collection | Objects | Editable features |
+| --- | --- | --- |
+| Composite tools | Hammer, knife, hatchet | Four hammer heads, three knife blades, proportions, and independent part materials |
+| Metal primitives | Plate, rod, tube, ring, I-beam, angle bracket, hex bolt, gear | Eight metal finishes, bevels, wear, and open bores where appropriate |
+| Spline lathe | Bowl, vase, jar, urn, planter, saucer, goblet, metal candlestick, wooden candlestick | Six draggable profile points, spline smoothness, proportions, wall thickness, and radial segments |
+
+See the [workshop guide](WORKSHOP.md) for the material controls, lathe editing, and fracture behavior.

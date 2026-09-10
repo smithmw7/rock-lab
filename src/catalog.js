@@ -1,11 +1,17 @@
+import { WORKSHOP_SURFACES } from './workshop-materials.js';
+
+import { WORKSHOP_GROUPS, WORKSHOP_CATALOG } from './workshop-geometry.js';
+
 export const shapeGroups = [
   {id:'natural',label:'Natural',description:'Fractured forms for landscapes and encounter spaces.',shapes:['boulder','stack','slab','spire','crystals','arch']},
   {id:'primitives',label:'Primitives',description:'Solid building pieces for material studies and level layouts.',shapes:['block','brick','sphere','cylinder','wedge','roundedBlock','smallBlock','mediumBlock','largeBlock','lowRamp','steepRamp','cornerRamp','platform']},
   {id:'structures',label:'Structures',description:'Assembled pieces for ruins, landmarks, and level kits.',shapes:['wall','monolith','columns','stairs','ruins','cairn']},
   {id:'architecture',label:'Architecture',description:'Open arches, crossings, columns, and architectural supports.',shapes:['roundArch','pointedArch','flatArch','bridge','roundColumn','squareColumn','brokenColumn','plinth','doorway']},
   {id:'furniture',label:'Furniture',description:'Simple assembled props with recognizable seats, tops, and supports.',shapes:['bench','table','chair','stool']},
+  ...WORKSHOP_GROUPS,
 ];
 export const shapes = {
+  ...WORKSHOP_CATALOG,
   boulder:{label:'Boulder',title:'Weathered boulder',icon:'M4 25 2 15 9 5 22 3 30 15 26 28 13 30Z M2 15 16 13 22 3 M16 13 26 28 M16 13 13 30'},
   stack:{label:'Outcrop',title:'Layered outcrop',icon:'M2 29 2 20 11 17 11 9 15 8 15 2 25 3 28 14 25 15 30 22 30 29Z M2 20 15 23 30 22 M15 23 15 30 M11 17 23 18 28 14 M15 8 21 10 25 3 M21 10 23 18'},
   slab:{label:'Ledge',title:'Broken stone ledge',icon:'M2 12 19 5 30 10 29 23 15 29 3 24Z M2 12 15 17 30 10 M15 17 15 29 M8 10 22 14 M8 14 8 26 M22 14 22 26'},
@@ -65,6 +71,7 @@ export const surfaces = {
   glass:{label:'Clear glass',short:'Glass',description:'Clear volume · bent light',roughness:.08},
   quartz:{label:'Included quartz',short:'Quartz',description:'Mineral flecks · rainbow edges',roughness:.15},
   frozenGlass:{label:'Translucent ice',short:'Translucent ice',description:'Frozen clouds · internal cracks',roughness:.18},
+  ...WORKSHOP_SURFACES,
 };
 export const grounds = {
   studio:{label:'Studio',description:'A quiet neutral surface',wetness:.35,reflection:.35,scale:1},

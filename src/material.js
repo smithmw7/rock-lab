@@ -1,11 +1,12 @@
 import { Color, Float32BufferAttribute, MeshPhysicalMaterial, ShaderChunk, Vector3 } from 'three';
 import { OPTICAL_DEFAULTS, OPTICAL_PRESETS, OPTICAL_RANGES } from './optical.js';
+import { WORKSHOP_MATERIAL_DEFAULTS, WORKSHOP_MATERIAL_RANGES, WORKSHOP_SURFACES } from './workshop-materials.js';
 
 // The seven opaque surfaces retain their original program behavior. The optical
 // family additionally uses Three's native transmission/dispersion/iridescence
 // variants; ordinary slider moves reuse those programs while a 0/positive toggle
 // may select another cached native variant.
-export const rockMaterialProgramKey = 'procedural-rock-surface-v9';
+export const rockMaterialProgramKey = 'procedural-rock-surface-v10-workshop';
 
 export const ROCK_SURFACES = Object.freeze([
   { key: 'stone', name: 'Alpine stone', description: 'Cool painted planes and chipped edges', defaultRoughness: 0.85 },
@@ -18,9 +19,11 @@ export const ROCK_SURFACES = Object.freeze([
   { key: 'glass', name: 'Clear glass', description: 'Refractive glass with depth absorption and sparse inclusions', defaultRoughness: 0.08 },
   { key: 'quartz', name: 'Clouded quartz', description: 'Translucent mineral with suspended clouds and internal fractures', defaultRoughness: 0.15 },
   { key: 'frozenGlass', name: 'Clear frozen glass', description: 'Transmissive blue ice with trapped inclusions and frozen cracks', defaultRoughness: 0.18 },
+  ...Object.entries(WORKSHOP_SURFACES).map(([key, surface]) => ({ key, name:surface.label, description:surface.description, defaultRoughness:surface.roughness, family:surface.family })),
 ]);
 const mapViews = ['beauty', 'normal', 'height', 'roughness'];
-const surfaceEnvironmentIntensity = [0.35, 0.7, 0.4, 0.32, 0.4, 0.45, 1.2, 1, 1, 1];
+const surfaceEnvironmentIntensity = [0.35, 0.7, 0.4, 0.32, 0.4, 0.45, 1.2, 1, 1, 1, ...Object.values(WORKSHOP_SURFACES).map(surface => surface.environment)];
+const workshopUniformName = key => `uWorkshop${key[0].toUpperCase()}${key.slice(1)}`;
 
 const vertexDeclarations = /* glsl */`
 attribute float aFaceTone;
@@ -58,6 +61,14 @@ uniform float uRockCloudiness;
 uniform float uRockInclusions;
 uniform float uRockInclusionScale;
 uniform float uRockInternalCracks;
+uniform float uWorkshopMetalBrushing;
+uniform float uWorkshopMetalWear;
+uniform float uWorkshopWoodGrainScale;
+uniform float uWorkshopWoodGrainStrength;
+uniform float uWorkshopWoodKnots;
+uniform float uWorkshopWoodWarmth;
+uniform float uWorkshopCeramicGlaze;
+uniform float uWorkshopCeramicSpeckle;
 varying vec3 vRockPosition;
 varying vec2 vRockUV;
 varying float vRockCoverageSlope;
@@ -253,6 +264,7 @@ vec3 rockSurface = mix(rockStone, rockIce, uRockIce);
 float rockHeightField = rockNoise(rockTextureP * 4.0 + vec3(2.7)) * 0.60 + rockBrush * 0.30 + rockFine * 0.10;
 float rockReliefDepth = mix(0.032, 0.024, uRockIce);
 float rockRoughnessVariation = (rockFine - 0.5) * 0.12;
+float rockWorkshopPatina = 0.0;
 
 if (uRockSurface > 1.5 && uRockSurface < 2.5) {
   // Sediment bands continue through the whole rock, with broad soft layers
@@ -316,7 +328,7 @@ if (uRockSurface > 1.5 && uRockSurface < 2.5) {
   rockHeightField = flow * 0.72 + rockBrush * 0.28;
   rockReliefDepth = 0.018;
   rockRoughnessVariation = (flow - 0.5) * 0.055;
-} else if (uRockSurface > 6.5) {
+} else if (uRockSurface > 6.5 && uRockSurface < 9.5) {
   // Near-neutral interface color leaves tinting to actual path absorption.
   // The legacy cyan ice above remains its separate opaque painted surface.
   rockSurface = vec3(0.965, 0.980, 0.985);
@@ -325,6 +337,119 @@ if (uRockSurface > 1.5 && uRockSurface < 2.5) {
   rockSurface *= 1.0 + rockFace * 0.06;
   rockReliefDepth = uRockSurface > 8.5 ? 0.012 : 0.006;
   rockRoughnessVariation = (rockBrush - 0.5) * 0.025 + uRockCloudiness * 0.07;
+} else if (uRockSurface > 9.5 && uRockSurface < 17.5) {
+  // The same native conductor BRDF lights every alloy. Directional micro
+  // relief, softer forged depressions, and exposed dielectric patina keep the
+  // finishes distinguishable without a painted highlight or reflection hack.
+  vec3 metalColor = vec3(0.52, 0.58, 0.65);
+  vec3 patinaColor = vec3(0.09, 0.052, 0.025);
+  float forge = 0.0;
+  if (uRockSurface > 10.5 && uRockSurface < 11.5) {
+    metalColor = vec3(0.22, 0.235, 0.25); patinaColor = vec3(0.13, 0.035, 0.012); forge = 1.0;
+  } else if (uRockSurface > 11.5 && uRockSurface < 12.5) {
+    metalColor = vec3(0.78, 0.81, 0.84); patinaColor = vec3(0.34, 0.35, 0.36);
+  } else if (uRockSurface > 12.5 && uRockSurface < 13.5) {
+    metalColor = vec3(0.56, 0.58, 0.60); patinaColor = vec3(0.19, 0.205, 0.21);
+  } else if (uRockSurface > 13.5 && uRockSurface < 14.5) {
+    metalColor = vec3(0.92, 0.44, 0.27); patinaColor = vec3(0.018, 0.12, 0.092);
+  } else if (uRockSurface > 14.5 && uRockSurface < 15.5) {
+    metalColor = vec3(0.57, 0.32, 0.13); patinaColor = vec3(0.028, 0.065, 0.047); forge = 0.25;
+  } else if (uRockSurface > 15.5 && uRockSurface < 16.5) {
+    metalColor = vec3(0.79, 0.59, 0.22); patinaColor = vec3(0.07, 0.06, 0.023);
+  } else if (uRockSurface > 16.5) {
+    metalColor = vec3(1.0, 0.72, 0.25); patinaColor = vec3(0.25, 0.15, 0.035);
+  }
+  float brushing = rockFilteredNoise(rockTextureP * vec3(95.0, 1.1, 73.0) + vec3(7.9, 1.6, 3.4));
+  float scratches = 1.0 - smoothstep(0.20, 0.28, rockFilteredNoise(rockTextureP * vec3(44.0, 1.9, 37.0)));
+  float forged = rockNoise(rockTextureP * 10.0 + vec3(2.7, 8.1, 4.2));
+  float wearField = rockBroad * 0.65 + rockNoise(rockTextureP * 6.0 + vec3(7.1)) * 0.35;
+  rockWorkshopPatina = smoothstep(0.76 - uWorkshopMetalWear * 0.43, 0.89 - uWorkshopMetalWear * 0.38, wearField);
+  rockWorkshopPatina *= uWorkshopMetalWear * (1.0 - vRockBevel * 0.9) * clamp(uRockNoiseAmount * 2.0, 0.0, 1.0);
+  rockSurface = metalColor * (1.0 + rockFace * 0.19 + (rockBroad - 0.5) * 0.08 * rockTextureDetail);
+  rockSurface *= 1.0 + (brushing - 0.5) * 0.09 * uWorkshopMetalBrushing * rockTextureDetail;
+  rockSurface = mix(rockSurface, patinaColor, rockWorkshopPatina);
+  rockSurface += metalColor * vRockBevel * uWorkshopMetalWear * 0.075;
+  rockHeightField = 0.5 + (brushing - 0.5) * uWorkshopMetalBrushing * 0.38
+    - scratches * uWorkshopMetalWear * 0.20 + (forged - 0.5) * forge * 0.5;
+  rockReliefDepth = mix(0.008, 0.023, forge);
+  rockRoughnessVariation = (brushing - 0.5) * uWorkshopMetalBrushing * 0.11
+    + scratches * uWorkshopMetalWear * 0.13 + rockWorkshopPatina * 0.5 + (forged - 0.5) * forge * 0.09;
+} else if (uRockSurface > 17.5 && uRockSurface < 20.5) {
+  // Continuous cylindrical growth rings run along the local Y grain axis.
+  // An object-space surface normal distinguishes cut ends from long faces;
+  // derivatives also keep this correct for baked and rotated handle parts.
+  vec3 woodP = rockTextureP * uWorkshopWoodGrainScale;
+  vec3 grainNormalRaw = cross(dFdx(rockP), dFdy(rockP));
+  vec3 grainNormal = grainNormalRaw / max(length(grainNormalRaw), 0.000001);
+  float endGrain = smoothstep(0.52, 0.89, abs(grainNormal.y));
+  vec2 growthCenter = vec2(-0.23, 0.17);
+  vec2 growthWarp = vec2(
+    rockNoise(woodP * vec3(0.75, 0.23, 0.65) + vec3(2.1)),
+    rockNoise(woodP * vec3(0.65, 0.19, 0.75) + vec3(9.3))
+  ) - 0.5;
+  float radius = length(woodP.xz - growthCenter + growthWarp * 0.32);
+  float phase = radius * 15.0 + rockNoise(woodP * vec3(3.2, 0.28, 3.2)) * 1.8;
+  float knotDark = 0.0;
+  // Two deliberately sparse elongated knots, with their grain curling into
+  // the core. A bounded loop avoids high-cost cellular searches per pixel.
+  for (int knotIndex = 0; knotIndex < 2; knotIndex++) {
+    float ki = float(knotIndex);
+    vec2 knotDelta = vec2(woodP.x - (ki * 1.33 - 0.62), (woodP.y - (ki * 2.9 - 0.75)) * 0.27);
+    float knotRadius = length(knotDelta);
+    float knotMask = (1.0 - smoothstep(0.18, 0.85, knotRadius)) * uWorkshopWoodKnots;
+    phase = mix(phase, knotRadius * 23.0 + ki * 1.7, knotMask * (1.0 - endGrain));
+    knotDark = max(knotDark, (1.0 - smoothstep(0.05, 0.21, knotRadius)) * uWorkshopWoodKnots * (1.0 - endGrain));
+  }
+  float grainAA = max(fwidth(phase), 0.002);
+  float ringWave = sin(phase) * 0.5 + 0.5;
+  float ringFade = 1.0 - smoothstep(1.0, 3.1, grainAA);
+  float darkRing = (1.0 - smoothstep(0.07, 0.24 + grainAA * 0.13, ringWave)) * ringFade;
+  float fibers = rockFilteredNoise(woodP * vec3(35.0, 0.75, 30.0) + vec3(8.4));
+  float grainAmount = uWorkshopWoodGrainStrength * clamp(uRockNoiseAmount * 2.0, 0.0, 1.0) * mix(0.35, 1.0, uRockDetail);
+  vec3 woodLight = vec3(0.57, 0.29, 0.085);
+  vec3 woodDark = vec3(0.19, 0.065, 0.016);
+  vec3 edgeWood = vec3(0.13, 0.08, 0.029);
+  if (uRockSurface > 18.5 && uRockSurface < 19.5) {
+    woodLight = vec3(0.18, 0.07, 0.022); woodDark = vec3(0.048, 0.015, 0.007); edgeWood = vec3(0.055, 0.025, 0.012);
+  } else if (uRockSurface > 19.5) {
+    woodLight = vec3(0.26, 0.23, 0.19); woodDark = vec3(0.088, 0.069, 0.050); edgeWood = vec3(0.07, 0.061, 0.040);
+  }
+  float woodTone = clamp(darkRing * 0.82 + (1.0 - ringWave) * 0.23 + knotDark * 0.7, 0.0, 1.0);
+  rockSurface = mix(woodLight, woodDark, woodTone * grainAmount);
+  rockSurface *= 1.0 + rockFace * 0.45 + (rockBroad - 0.5) * 0.12 * rockTextureDetail;
+  rockSurface *= 1.0 + (fibers - 0.5) * 0.22 * grainAmount * (1.0 - endGrain);
+  rockSurface += vRockBevel * edgeWood * (0.65 + rockLightFacing * 0.35);
+  rockSurface *= mix(vec3(0.79, 0.93, 1.12), vec3(1.13, 1.025, 0.79), uWorkshopWoodWarmth);
+  rockSurface *= mix(vec3(0.88, 0.97, 1.08), vec3(1.08, 1.0, 0.87), clamp(0.5 + uRockHue * 0.5, 0.0, 1.0));
+  rockHeightField = 0.5 + ((fibers - 0.5) * 0.33 - darkRing * 0.45 - knotDark * 0.22) * uWorkshopWoodGrainStrength;
+  rockReliefDepth = uRockSurface > 19.5 ? 0.055 : 0.031;
+  rockRoughnessVariation = (darkRing * 0.16 + (fibers - 0.5) * 0.14) * uWorkshopWoodGrainStrength;
+} else if (uRockSurface > 20.5 && uRockSurface < 24.5) {
+  // Throwing rings wrap continuously around a lathe vessel; mineral flecks
+  // fade with pixel footprint. Glaze has its own native clearcoat lobe.
+  float throwPhase = rockTextureP.y * 47.0 + rockNoise(rockTextureP * vec3(2.0, 3.8, 2.0)) * 0.9;
+  float thrown = (sin(throwPhase) * 0.5 + 0.5) * (1.0 - smoothstep(1.0, 3.0, fwidth(throwPhase)));
+  float clayGrain = rockFilteredNoise(rockTextureP * 72.0 + vec3(6.2, 3.1, 4.8));
+  float speckles = smoothstep(0.68, 0.77, clayGrain) * uWorkshopCeramicSpeckle;
+  float glazePool = smoothstep(0.35, 0.68, rockBroad) * uWorkshopCeramicGlaze;
+  vec3 clayColor = vec3(0.42, 0.105, 0.037);
+  vec3 glazeColor = vec3(0.59, 0.17, 0.056);
+  vec3 mineralColor = vec3(0.095, 0.041, 0.017);
+  if (uRockSurface > 21.5 && uRockSurface < 22.5) {
+    clayColor = vec3(0.72, 0.67, 0.56); glazeColor = vec3(0.86, 0.83, 0.74); mineralColor = vec3(0.24, 0.21, 0.17);
+  } else if (uRockSurface > 22.5 && uRockSurface < 23.5) {
+    clayColor = vec3(0.14, 0.31, 0.24); glazeColor = vec3(0.25, 0.48, 0.37); mineralColor = vec3(0.043, 0.095, 0.066);
+  } else if (uRockSurface > 23.5) {
+    clayColor = vec3(0.42, 0.34, 0.23); glazeColor = vec3(0.62, 0.54, 0.40); mineralColor = vec3(0.075, 0.043, 0.022);
+  }
+  rockSurface = mix(clayColor, glazeColor, glazePool * 0.62);
+  rockSurface *= 1.0 + rockFace * 0.18 + (rockBrush - 0.5) * 0.08 * rockTextureDetail;
+  rockSurface *= 1.0 + (thrown - 0.5) * 0.035 * rockTextureDetail * (1.0 - uWorkshopCeramicGlaze * 0.7);
+  rockSurface = mix(rockSurface, mineralColor, speckles * clamp(rockTextureDetail * 2.0, 0.0, 1.0));
+  rockSurface += vRockBevel * glazeColor * 0.04;
+  rockHeightField = 0.5 + (thrown - 0.5) * 0.18 + (clayGrain - 0.5) * (0.25 - uWorkshopCeramicGlaze * 0.2) - speckles * 0.08;
+  rockReliefDepth = mix(0.038, 0.008, uWorkshopCeramicGlaze);
+  rockRoughnessVariation = (clayGrain - 0.5) * 0.12 + speckles * 0.16 - (uWorkshopCeramicGlaze - 0.7) * 0.24;
 }
 
 // Hue remains a gentle warm/cool adjustment across the new rock presets.
@@ -354,7 +479,7 @@ const transmissionFragment = ShaderChunk.transmission_fragment
   .replace('material.attenuationColor = attenuationColor;', 'material.attenuationColor = max(attenuationColor, vec3(0.0001));')
   .replace('vec3 v = normalize( cameraPosition - pos );', 'vec3 v = isOrthographic ? inverseTransformDirection(vec3(0.0, 0.0, 1.0), viewMatrix) : normalize(cameraPosition - pos);')
   .replace(/\n#endif\s*$/, /* glsl */`
-    if (uRockSurface > 6.5 && uRockMapView < 0.5) {
+    if (uRockSurface > 6.5 && uRockSurface < 9.5 && uRockMapView < 0.5) {
       vec3 incidentView = isOrthographic ? vec3(0.0, 0.0, -1.0) : -normalize(vViewPosition);
       vec3 refractedView = refract(incidentView, normal, 1.0 / material.ior);
       vec3 patternRay = rockRayInPattern(refractedView, rockP);
@@ -394,13 +519,22 @@ export function updateRockMaterial(material, options = {}) {
   if ('fractureInterior' in options) uniforms.uRockInterior.value = options.fractureInterior ? 1 : 0;
   if ('tint' in options && (options.tint?.isColor || typeof options.tint === 'number' || /^#[0-9a-f]{6}$/i.test(options.tint))) uniforms.uRockTint.value.set(options.tint);
   if ('tintAmount' in options) uniforms.uRockTintAmount.value = finiteClamped(options.tintAmount, uniforms.uRockTintAmount.value);
+  const workshop = material.userData.workshopOptions;
+  const workshopPreset = WORKSHOP_SURFACES[options.surface];
+  if (workshopPreset && !Object.keys(WORKSHOP_MATERIAL_DEFAULTS).some(key => key in options)) Object.assign(workshop, workshopPreset.defaults);
+  for (const [key, [min, max]] of Object.entries(WORKSHOP_MATERIAL_RANGES)) {
+    if (key in options) workshop[key] = finiteClamped(options[key], workshop[key], min, max);
+    uniforms[workshopUniformName(key)].value = workshop[key];
+  }
   const optical = material.userData.opticalOptions;
   if (OPTICAL_PRESETS[options.surface] && !Object.keys(OPTICAL_DEFAULTS).some(key => key in options)) Object.assign(optical, OPTICAL_PRESETS[options.surface]);
   for (const [key, [min, max]] of Object.entries(OPTICAL_RANGES)) {
     if (key in options) optical[key] = finiteClamped(options[key], optical[key], min, max);
   }
   if (/^#[0-9a-f]{6}$/i.test(options.absorptionColor)) optical.absorptionColor = options.absorptionColor;
-  const opticalActive = uniforms.uRockSurface.value >= 7;
+  const surfaceIndex = uniforms.uRockSurface.value;
+  const activeSurface = WORKSHOP_SURFACES[ROCK_SURFACES[surfaceIndex].key];
+  const opticalActive = surfaceIndex >= 7 && surfaceIndex <= 9;
   // Native setters handle legitimate 0/positive shader-feature changes. All
   // non-optical surfaces keep the original dielectric defaults and no prepass.
   material.transmission = opticalActive ? optical.transmission : 0;
@@ -410,6 +544,9 @@ export function updateRockMaterial(material, options = {}) {
   material.attenuationColor.set(optical.absorptionColor);
   material.dispersion = opticalActive && optical.transmission > 0 ? optical.dispersion : 0;
   material.iridescence = opticalActive ? optical.iridescence : 0;
+  material.metalness = activeSurface?.metalness ?? 0;
+  material.clearcoat = activeSurface?.family === 'ceramic' ? workshop.ceramicGlaze * 0.85 : 0;
+  material.clearcoatRoughness = activeSurface?.family === 'ceramic' ? 0.32 - workshop.ceramicGlaze * 0.24 : 0;
   uniforms.uRockCloudiness.value = optical.cloudiness;
   uniforms.uRockInclusions.value = optical.inclusions;
   uniforms.uRockInclusionScale.value = optical.inclusionScale;
@@ -427,7 +564,7 @@ export function createRockMaterial(options = {}) {
     opacity: 1,
     depthWrite: true,
   });
-  material.name = 'Procedural rock / ice surface';
+  material.name = 'Procedural rock / workshop surface';
   // Original procedural meshes need no fracture attributes. Constant defaults
   // select the normal object-space path and keep imported cut meshes renderable.
   material.defaultAttributeValues = {
@@ -454,9 +591,11 @@ export function createRockMaterial(options = {}) {
     uRockInclusions: { value: OPTICAL_DEFAULTS.inclusions },
     uRockInclusionScale: { value: OPTICAL_DEFAULTS.inclusionScale },
     uRockInternalCracks: { value: OPTICAL_DEFAULTS.internalCracks },
+    ...Object.fromEntries(Object.entries(WORKSHOP_MATERIAL_DEFAULTS).map(([key, value]) => [workshopUniformName(key), { value }])),
   };
+  material.userData.workshopOptions = { ...WORKSHOP_MATERIAL_DEFAULTS, ...(WORKSHOP_SURFACES[options.surface]?.defaults ?? {}) };
   material.userData.opticalOptions = { ...OPTICAL_DEFAULTS, ...(OPTICAL_PRESETS[options.surface] ?? {}) };
-  material.userData.surfaceNotes = 'Procedural object-space color, height-driven normal relief, and roughness. Map views are live diagnostics, not baked export maps. Normal view is world-space. Original ice stays opaque. Glass/quartz/frozenGlass use native scene-color transmission plus six view-depth samples of procedural inclusions, cloudiness and internal cracks. Artist thickness is approximate and bounded on fractured chunks; this is not mesh ray tracing, multiple scattering or glass-to-glass refraction. Snow is surface coverage without added geometry. Relief affects shading, not the silhouette.';
+  material.userData.surfaceNotes = 'Procedural object-space color, height-driven normal relief, and roughness. Map views are live diagnostics, not baked export maps. Normal view is world-space. Original ice stays opaque. Glass/quartz/frozenGlass use native scene-color transmission plus six view-depth samples of procedural inclusions, cloudiness and internal cracks. Artist thickness is approximate and bounded on fractured chunks; this is not mesh ray tracing, multiple scattering or glass-to-glass refraction. Metals use native conductor metalness with nonmetal patina, bounded brushing and scratches; brushing is directional relief, not an anisotropic BRDF. Wood uses local-Y growth rings, long grain, cut-end grain and sparse knots. Ceramic uses throwing rings, mineral speckles and a native dielectric glaze clearcoat. Soft worn edges, chips and hollow walls come from geometry. Snow is surface coverage without added geometry. Relief affects shading, not the silhouette.';
   material.customProgramCacheKey = () => rockMaterialProgramKey;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, material.userData.rockUniforms);
@@ -484,6 +623,10 @@ export function createRockMaterial(options = {}) {
       .replace('#include <roughnessmap_fragment>', /* glsl */`
         #include <roughnessmap_fragment>
         roughnessFactor = rockSurfaceRoughness;
+      `)
+      .replace('#include <metalnessmap_fragment>', /* glsl */`
+        #include <metalnessmap_fragment>
+        metalnessFactor *= (1.0 - rockWorkshopPatina) * (1.0 - rockSnowMask);
       `)
       .replace('#include <normal_fragment_maps>', /* glsl */`
         #include <normal_fragment_maps>

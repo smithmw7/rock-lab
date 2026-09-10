@@ -1,0 +1,19 @@
+.material-family-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+#material-slot-row{padding:12px;margin:0 0 14px;border:1px solid #465762;border-radius:7px;background:#26333c}
+#material-slot-row label{white-space:nowrap}
+#material-slot-row select{max-width:146px}
+.lathe-profile-editor{padding:12px;border:1px solid #3b4e5b;border-radius:7px;background:#18232b}
+#lathe-profile{display:block;width:100%;height:auto;touch-action:none;overflow:visible;background:linear-gradient(#8daabb09 1px,transparent 1px),linear-gradient(90deg,#8daabb09 1px,transparent 1px);background-size:20px 20px;border-radius:4px}
+.lathe-axis{stroke:#748b9a;stroke-width:1;stroke-dasharray:4 4}
+.lathe-silhouette{fill:#6e95ab20;stroke:#658297;stroke-width:1}
+.lathe-curve{fill:none;stroke:#c2dce9;stroke-width:2}
+#lathe-profile circle{cursor:ew-resize;fill:#273e4b;stroke:#98b8ca;stroke-width:2;outline:none}
+#lathe-profile circle.selected{fill:#d3e8f1;stroke:#effaff}
+#lathe-profile circle:focus-visible{stroke:#efd49b;stroke-width:4}
+.lathe-caption{fill:#7b96a6;font:8px system-ui;letter-spacing:1px}
+.lathe-profile-editor .control-note{margin-bottom:12px;font-size:10px}
+.lathe-profile-editor .select-row{margin-top:12px}
+.lathe-profile-editor .full-reset{margin-top:15px}
+#edit-parts{margin-top:16px}
+#composite-controls-panel .select-row select{max-width:148px}
+@media(max-width:720px){#lathe-profile{max-height:250px}#material-slot-row select{max-width:185px}.lathe-profile-editor .control-note{font-size:11px}}

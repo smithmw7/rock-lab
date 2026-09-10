@@ -15,7 +15,9 @@
     "qa:tooltips": "node scripts/qa-tooltips.mjs",
     "qa:publication": "node scripts/qa-publication.mjs",
     "qa:objects": "node scripts/qa-object-library.mjs",
-    "verify:kit": "node scripts/verify-kit.mjs"
+    "verify:kit": "node scripts/verify-kit.mjs",
+    "verify:workshop": "node scripts/verify-workshop.mjs",
+    "qa:workshop": "node scripts/qa-workshop.mjs"
   },
   "dependencies": {
     "@dgreenheck/three-pinata": "2.0.1",

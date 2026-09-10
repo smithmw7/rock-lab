@@ -5,6 +5,7 @@ import { buildAsset, disposeAsset, SHAPE_GROUPS } from '../src/geometry.js';
 import { createRockMaterial, updateRockMaterial, ROCK_SURFACES } from '../src/material.js';
 import { shapes as catalogShapes, surfaces, grounds, looks } from '../src/catalog.js';
 import { GROUND_TYPES } from '../src/ground.js';
+import { WORKSHOP_MATERIAL_DEFAULTS, WORKSHOP_MATERIAL_RANGES, WORKSHOP_SURFACES } from '../src/workshop-materials.js';
 
 const material=new MeshBasicMaterial();
 const shapes=SHAPE_GROUPS.flatMap(group=>group.shapes);
@@ -52,24 +53,41 @@ for(const shape of shapes)for(const geometryNoiseScale of [.3,8]){
 }
 const mat=createRockMaterial(),key=mat.customProgramCacheKey(),version=mat.version;
 const originalSurfaceKeys=new Set(['stone','ice','desert','limestone','granite','basalt','obsidian']);
-const nativeFeatures=['transmission','dispersion','iridescence'];
+const nativeFeatures=['transmission','dispersion','iridescence','clearcoat'];
 function updateChecked(options){
   const before=nativeFeatures.map(name=>(mat[name]??0)>0),beforeVersion=mat.version;
   updateRockMaterial(mat,options);
   const changedFlags=nativeFeatures.filter((name,index)=>((mat[name]??0)>0)!==before[index]).length;
   assert.equal(mat.version-beforeVersion,changedFlags,'Only native physical shader feature toggles may invalidate the material');
-  assert.equal(mat.customProgramCacheKey(),key,'Optical values must retain the same custom shader implementation');
+  assert.equal(mat.customProgramCacheKey(),key,'Physical values must retain the same custom shader implementation');
 }
 for(const [index,surface] of ROCK_SURFACES.entries()){
   updateChecked({surface:surface.key});
   assert.equal(mat.userData.rockUniforms.uRockSurface.value,index);
   assert.equal(mat.userData.rockUniforms.uRockRoughness.value,surface.defaultRoughness);
+  const family=WORKSHOP_SURFACES[surface.key]?.family;
+  assert.equal(mat.metalness,family==='metal'?1:0,`${surface.key} must use the correct conductor/dielectric response`);
+  assert.equal(mat.transmission>0,index>=7&&index<=9,`${surface.key} must only enable transmission for optical surfaces`);
+  assert.equal(mat.clearcoat>0,family==='ceramic',`${surface.key} must only enable glaze clearcoat for ceramics`);
   for(const mapView of ['beauty','normal','height','roughness']){
     updateChecked({mapView,noiseScale:3.7,noiseAmount:.8,normalStrength:.6,materialRoughness:.19});
     assert.equal(mat.userData.rockUniforms.uRockNormalStrength.value,.6);
     assert.equal(mat.userData.rockUniforms.uRockRoughness.value,.19);
     if(originalSurfaceKeys.has(surface.key))assert.equal(mat.version,version,'Original seven materials must keep uniform-only updates');
   }
+}
+// A recipe retains inactive family's values. Switching from optical material
+// must not silently make wood, metal or clay transmissive or iridescent.
+for(const [surface,preset] of Object.entries(WORKSHOP_SURFACES)){
+  updateChecked({surface,...WORKSHOP_MATERIAL_DEFAULTS,transmission:1,dispersion:1,iridescence:1});
+  assert.equal(mat.transmission,0);assert.equal(mat.dispersion,0);assert.equal(mat.iridescence,0);
+  for(const [field,[min,max]] of Object.entries(WORKSHOP_MATERIAL_RANGES)){
+    updateChecked({[field]:-999});assert.equal(mat.userData.workshopOptions[field],min);
+    updateChecked({[field]:999});assert.equal(mat.userData.workshopOptions[field],max);
+    updateChecked({[field]:Number.NaN});assert.equal(mat.userData.workshopOptions[field],max);
+  }
+  updateChecked({ceramicGlaze:0});assert.equal(mat.clearcoat,0);
+  updateChecked({ceramicGlaze:1});assert.equal(mat.clearcoat,preset.family==='ceramic'?.85:0);
 }
 for(const look of Object.values(looks)){assert(catalogShapes[look.options.shape]);assert(surfaces[look.options.surface]);assert(grounds[look.options.ground]);}
 mat.dispose();material.dispose();timings.sort((a,b)=>a-b);

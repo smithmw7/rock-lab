@@ -15,8 +15,10 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 
 | | What's inside |
 | :--- | :--- |
-| **38 objects** | Rocks, arches, a bridge, furniture, columns, blocks, ramps, walls, stairs, and ruins in a searchable scrolling library |
-| **10 materials** | Slate, sandstone, limestone, granite, basalt, obsidian, glacier ice, clear glass, quartz, and translucent ice |
+| **58 objects** | Rocks, modular architecture, furniture, composite tools, metal stock, and turned pottery in a searchable scrolling library |
+| **25 materials** | Stone and ice, glass and crystal, eight metals, three woods, and four ceramic finishes |
+| **Composite tools** | Four hammer heads, three knife blades, and a hatchet with separate handle, working end, and fitting materials |
+| **Spline lathe** | Drag six profile points to reshape bowls, vases, jars, urns, planters, saucers, goblets, and candlesticks |
 | **5 grounds** | Studio, wet asphalt, concrete, sand, and wooden planks, with live planar reflections |
 | **Surface detail** | Seeded noise, normal relief, grain, cracks, contrast, snow, and geometry displacement |
 | **Optical effects** | Transmission, refraction, dispersion, absorption, cloudy volumes, and inclusions |
@@ -50,6 +52,7 @@ Open [localhost:5207](http://127.0.0.1:5207/). Choose another free port if it is
 ```sh
 npm run verify                 # Seeded geometry and material checks
 npm run verify:kit             # Closed meshes across kit parameter extremes
+npm run verify:workshop        # Tool variants, hollow vessels, and spline extremes
 npm run verify:fracture        # Actual fracture geometry and physics
 npm run build                 # Portable static app in dist/
 npm run verify:publication     # Check deployable assets and exclusions
@@ -67,8 +70,9 @@ The GitHub Actions workflow builds and deploys `main` to Pages. Relative asset p
 Start with [`src/geometry.js`](src/geometry.js), [`src/material.js`](src/material.js), [`src/ground.js`](src/ground.js), and [`src/fracture.js`](src/fracture.js) to reuse the generators in another Three.js project. The [full guide](docs/USER-GUIDE.md) explains the controls, integration, rendering tradeoffs, and game-asset pipeline.
 
 - [Glass, crystal, and ice shader research](TRANSLUCENT-MATERIALS.md)
-- [Object library: all 38 forms and the new modular kit](docs/OBJECT-LIBRARY.md)
-- [Stylized wood research and proposed pipeline](STYLIZED-WOOD-RESEARCH.md) (research; wood assets are not implemented)
+- [Object library: all 58 forms](docs/OBJECT-LIBRARY.md)
+- [Composite tools, materials, and spline lathe guide](docs/WORKSHOP.md)
+- [Stylized wood research and pipeline](STYLIZED-WOOD-RESEARCH.md)
 - [Validation notes](VALIDATION.md)
 - [Contributor rules](AGENTS.md)
 

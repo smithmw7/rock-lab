@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { shapes, shapeGroups } from '../src/catalog.js';
 
 // Independent, real-browser checks. Screenshots are actual WebGL output; the
 // contact sheet only arranges those captures for review. Never uses the user's
@@ -15,7 +16,7 @@ const newShapes = [
   'roundArch', 'pointedArch', 'flatArch', 'bridge', 'roundColumn', 'squareColumn', 'brokenColumn', 'plinth', 'doorway',
   'bench', 'table', 'chair', 'stool',
 ];
-const familyCounts = { all: 38, natural: 6, primitives: 13, structures: 6, architecture: 9, furniture: 4 };
+const familyCounts = { all: Object.keys(shapes).length, ...Object.fromEntries(shapeGroups.map(group=>[group.id,group.shapes.length])) };
 const report = { url: process.env.ROCK_LAB_URL || 'http://127.0.0.1:5207/', checks: {}, shapes: {}, browserErrors: [], warnings: [] };
 const sourceFiles = ['src/geometry.js', 'src/kit-geometry.js', 'src/catalog.js', 'src/library.js', 'src/main.js'];
 async function sourceHashes() {
@@ -139,7 +140,7 @@ try {
   await page.goto(report.url);
   await page.waitForFunction(() => window.rockLab?.ready);
   assert.equal(await page.locator('[data-family="all"]').getAttribute('aria-selected'), 'true');
-  assert.equal(await page.locator('#shapes [data-shape]').count(), 38);
+  assert.equal(await page.locator('#shapes [data-shape]').count(), familyCounts.all);
   await page.locator('#sound-toggle').click();
 
   for (const id of newShapes) {
@@ -190,7 +191,7 @@ try {
   await page.screenshot({ path: path.join(output, 'search-empty.png') });
   await page.locator('#reset-shape-filters').click();
   assert.equal(await page.locator('#shape-search').inputValue(), '');
-  assert.equal(await page.locator('#shapes [data-shape]').count(), 38);
+  assert.equal(await page.locator('#shapes [data-shape]').count(), familyCounts.all);
   report.checks.search = { passed: true, lastItemFound: 'stool', clearWorks: true, emptyStateAndReset: true };
 
   const list = page.locator('#shapes');
@@ -203,11 +204,12 @@ try {
   report.checks.scrollAndSeed = { passed: true, listHeight: listRect.height, seed: 53821 };
   await page.locator('#shapes [data-shape]').first().focus();
   const beforeFocusNavigation = await page.evaluate(() => ({ shape: window.rockLab.state.shape, generations: window.rockLab.getStats().generationCount }));
+  const lastShape = await page.locator('#shapes [data-shape]').last().getAttribute('data-shape');
   await page.keyboard.press('End');
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.shape), 'stool');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.shape), lastShape);
   assert.deepEqual(await page.evaluate(() => ({ shape: window.rockLab.state.shape, generations: window.rockLab.getStats().generationCount })), beforeFocusNavigation, 'Focus navigation must not regenerate or select an object');
   await page.keyboard.press('Enter');
-  assert.equal((await snapshot()).shape, 'stool');
+  assert.equal((await snapshot()).shape, lastShape);
   await page.keyboard.press('Home');
   const firstShape = await page.locator('#shapes [data-shape]').first().getAttribute('data-shape');
   assert.equal(await page.evaluate(() => document.activeElement.dataset.shape), firstShape);
@@ -221,9 +223,11 @@ try {
   await page.locator('#seed').fill('58203'); await page.locator('#seed').press('Tab');
   await page.locator('#tab-material').click();
   await page.locator('[data-material-target="outer"]').click();
+  await page.locator('[data-material-family="rock"]').click();
   await page.locator('[data-surface="desert"]').click();
   await range('#materialRoughness', .61); await range('#noiseAmount', .29);
   await page.locator('[data-material-target="inner"]').click();
+  await page.locator('[data-material-family="rock"]').click();
   await page.locator('[data-surface="obsidian"]').click();
   const expectedRecipe = await page.evaluate(() => window.rockLab.recipe());
   const downloadEvent = page.waitForEvent('download');

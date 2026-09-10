@@ -2,6 +2,19 @@
 
 Checked September 9, 2026.
 
+## Composite workshop and spline lathe
+
+- Added 20 objects for 58 total and 15 materials for 25 total. The new collections include three composite tools, eight metal primitives, and nine lathe objects. Four hammer heads and three knife blades change actual geometry.
+- `npm run verify` passes 348 base cases and 116 displacement cases across all 58 shapes, plus 25-material catalog/native-property checks. Original 38 shapes preserve identical attributes and transforms in 152 seeded/displacement comparisons.
+- `npm run verify:workshop` passes 114 extreme combinations, 256 meshes, and 2,203,152 welded edges. Every edge has two oppositely oriented incident faces. Checks cover positive volume, all variants, alternating extreme profile points, cavity floors, open rims and bores, and exterior-only material groups. It runs in Pages CI.
+- `npm run verify:fracture` passes 69 actual Pinata/Rapier cases. Three shared material pairs survive two cut generations, live edits, rebinding during a pending cut, resolver failure, reset, re-enable, and slot-aware collision events. Shared materials are never disposed by the controller.
+- `npm run qa:workshop` passes real rendering of all 20 objects and 15 new finishes; every new material control changes GPU pixels without rebuilding geometry. Warmed geometry, texture, and shader counts remain stable across repeated finish edits. The prior 10 surfaces retain exact pixels in an isolated warmed-shader parity harness.
+- Mouse dragging, keyboard editing, point/radius inputs, and 390×844 touch dragging change the lathe geometry. All eight lathe sliders change geometry. Actual v4 file download/import restores custom profiles and all composite material pairs. Real handle pointer cuts preserve the role's exterior/interior through generation two and reset.
+- The recipe compatibility browser suite imports actual v1, v2, and v3 JSON files, retaining prior shape/material/fracture settings and supplying the new workshop defaults. The v4 export also round-trips through the native file picker.
+- The old modular-library browser suite still passes all 12 groups with the new 58-object counts. Menu checks and all 110 parameter-label tooltips pass at desktop and narrow widths; action buttons have no tooltip help. The standard web-game client renders a steel/oak/brass hammer with matching text state. Screenshots and both workshop contact sheets were visually inspected.
+- Workshop browser runs record no JavaScript errors or warnings. Production build and private-asset exclusion checks pass. Vite retains its existing large-chunk warning. An extra zero-wear vase fracture with seed 701 returned fragments with an upstream triangulation warning; the main 69-case suite passes with only its existing explicit approximation warning.
+- Validation is desktop/browser based. Convex debris colliders approximate concavity; metal uses rigid fracture rather than bending, and wood cuts do not model directional splitting. Older baked furniture meshes use object-wide grain coordinates. GLB and baked texture export remain outside this change.
+
 
 ## Scrolling object library and modular kit
 

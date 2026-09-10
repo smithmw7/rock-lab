@@ -1,6 +1,6 @@
 # Procedural stylized wood for Rock Lab
 
-Research checked September 9, 2026 against the supplied Dragon workbench and fence images, the current Rock Lab source, and its installed Three.js 0.185.1. This is a researched implementation brief; the wood material and shapes have not been added to the app.
+Research checked September 9, 2026 against the supplied Dragon workbench and fence images and Three.js 0.185.1. This document records the original implementation brief. Rock Lab now includes procedural oak, walnut, and weathered wood, aligned wood handles, and a spline-turned wooden candlestick; see the [workshop guide](docs/WORKSHOP.md). Dedicated split-log, chipped-plank, and fence generators described below remain proposed work.
 
 The recommended approach is a procedural wood material combined with a timber geometry generator. The references get their character from thick boards, broad flat faces, generous worn bevels, sparse end splits, and warm color variation. Grain is long, broad, and restrained. The workbench also gets substantial depth from the gaps between its individual boards and supports.
 

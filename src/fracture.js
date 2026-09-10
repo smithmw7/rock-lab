@@ -55,7 +55,7 @@ const initializeRapier = () => rapierReady ||= import('@dimforge/rapier3d-compat
 const triangleCount = geometry => (geometry.index?.count || geometry.attributes.position.count) / 3;
 
 /** Independent, disposable destruction preview. Source meshes remain untouched. */
-export async function createFractureLab({ scene, outerMaterial, innerMaterial, onChange = () => {}, onMessage = () => {}, onEvent = () => {} }) {
+export async function createFractureLab({ scene, outerMaterial, innerMaterial, getMaterials, onChange = () => {}, onMessage = () => {}, onEvent = () => {} }) {
   await initializeRapier();
   const container = new THREE.Group(); container.name = 'Rock Lab destruction'; scene.add(container);
   const world = new RAPIER.World({ x: 0, y: -FRACTURE_DEFAULTS.gravity, z: 0 });
@@ -84,6 +84,14 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, o
     // Audio and other observers must never turn a completed geometry/physics
     // transaction into a reported fracture failure.
     try { onEvent(event); } catch (error) { console.warn('Fracture event listener failed:', error); }
+  };
+  const sourceSlot = mesh => mesh.userData.materialSlot || 'primary';
+  const resolveMaterials = mesh => {
+    const selected = getMaterials?.(mesh) || {};
+    const outer = selected.outerMaterial ?? outerMaterial;
+    const inner = selected.innerMaterial ?? innerMaterial ?? outer;
+    if (!outer?.isMaterial || !inner?.isMaterial) throw new TypeError('Each fracture part needs valid outer and inner materials.');
+    return { outerMaterial: outer, innerMaterial: inner };
   };
   const clearContactEvents = () => {
     eventQueue.clear(); incomingMotion.clear(); pendingImpacts.clear(); collisionCooldown.clear(); collisionDispatches.length = 0; simulationTime = 0;
@@ -129,6 +137,7 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, o
     try {
       sourceRoot.traverse(original => {
         if (!original.isMesh || !original.geometry?.attributes.position) return;
+        const materials = resolveMaterials(original), materialSlot = sourceSlot(original);
         const geometry = original.geometry.clone();
         // Lock the material's object coordinates before physics recenters and
         // moves the render mesh. This keeps every exterior pattern attached.
@@ -139,12 +148,13 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, o
         }
         geometry.applyMatrix4(original.matrixWorld); geometry.computeBoundingBox();
         const center = geometry.boundingBox.getCenter(new THREE.Vector3()); geometry.translate(-center.x, -center.y, -center.z);
-        const mesh = new THREE.Mesh(geometry, outerMaterial); mesh.position.copy(center);
+        const mesh = new THREE.Mesh(geometry, materials.outerMaterial); mesh.position.copy(center);
         mesh.userData.generation = 0;
+        mesh.userData.materialSlot = materialSlot;
         mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = `${original.name || 'Rock'} intact`;
         let physics;
         try { physics = makeBody(mesh, false); } catch (error) { geometry.dispose(); throw error; }
-        candidates.push({ mesh, ...physics, generation: 0, patternMatrix: original.matrixWorld.clone().invert(), originalMatrix: original.matrixWorld.clone() });
+        candidates.push({ mesh, ...physics, generation: 0, materials, materialSlot, sourceMesh: original, patternMatrix: original.matrixWorld.clone().invert(), originalMatrix: original.matrixWorld.clone() });
       });
       if (!candidates.length) throw new Error('No solid mesh is available to fracture.');
       for (const record of candidates) registerRecord(record);
@@ -221,8 +231,9 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, o
       if (totalTriangles > 100000) throw new Error('This result exceeds 100,000 triangles. Reduce shape detail or fracture count. The source piece was retained.');
       for (const [index, fragment] of result.fragments.entries()) {
         const geometry = decodeGeometry(fragment.geometry);
-        const next = new THREE.Mesh(geometry, [outerMaterial, innerMaterial || outerMaterial]);
+        const next = new THREE.Mesh(geometry, [record.materials.outerMaterial, record.materials.innerMaterial]);
         next.userData.generation = record.generation + 1;
+        next.userData.materialSlot = record.materialSlot;
         next.position.fromArray(fragment.position); next.castShadow = true; next.receiveShadow = true;
         next.name = `Fragment ${record.generation + 1}.${index + 1}`;
         let physics;
@@ -231,7 +242,7 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, o
           geometry.computeBoundingBox(); geometry.computeBoundingSphere();
           physics = makeBody(next, true);
         } catch (error) { geometry.dispose(); throw error; }
-        staged.push({ mesh: next, ...physics, generation: record.generation + 1, patternMatrix: record.patternMatrix.clone() });
+        staged.push({ mesh: next, ...physics, generation: record.generation + 1, materials: record.materials, materialSlot: record.materialSlot, sourceMesh: record.sourceMesh, patternMatrix: record.patternMatrix.clone() });
       }
       // Keep the original body and mesh alive until every fragment has valid
       // render attributes and a collider. Failed work never partly removes it.
@@ -248,7 +259,7 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, o
         next.body.applyTorqueImpulse({ x: Math.sin(index * 7.1 + options.seed) * options.impulse * next.body.mass() * 0.035, y: Math.cos(index * 3.1) * options.impulse * next.body.mass() * 0.035, z: Math.sin(index * 5.7) * options.impulse * next.body.mass() * 0.035 }, true);
       }
       container.updateMatrixWorld(true);
-      emitEvent({ type: 'break', pieceId: mesh.uuid, position: { x: impact.x, y: impact.y, z: impact.z }, fragmentCount: staged.length });
+      emitEvent({ type: 'break', pieceId: mesh.uuid, materialSlot: record.materialSlot, position: { x: impact.x, y: impact.y, z: impact.z }, fragmentCount: staged.length });
       return staged.length;
     } catch (error) {
       for (const next of staged) {
@@ -320,7 +331,7 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, o
       if (!records.has(record.mesh.uuid) || simulationTime - (collisionCooldown.get(record.mesh.uuid) ?? -Infinity) < 0.22) continue;
       const position = record.body.translation();
       collisionCooldown.set(record.mesh.uuid, simulationTime); collisionDispatches.push(simulationTime); dispatched++;
-      emitEvent({ type: 'collision', pieceId: record.mesh.uuid, position: { x: position.x, y: position.y, z: position.z }, strength });
+      emitEvent({ type: 'collision', pieceId: record.mesh.uuid, materialSlot: record.materialSlot, position: { x: position.x, y: position.y, z: position.z }, strength });
     }
   }
 
@@ -335,6 +346,22 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, o
         catch (error) { enabled = false; sourceRoot.visible = sourceVisible; failures++; say(error.message); }
       }
       notify();
+    },
+    // Shared material uniforms/colors update existing pieces immediately. Call
+    // this only when replacing material objects or reassigning source slots.
+    // Resolve every pair first so a failed callback never partly rebinds debris.
+    refreshMaterials() {
+      if (disposed) return false;
+      const pairs = new Map();
+      try {
+        for (const record of records.values()) if (!pairs.has(record.sourceMesh)) pairs.set(record.sourceMesh, resolveMaterials(record.sourceMesh));
+      } catch (error) { failures++; say(error.message || 'Part material update failed. Existing materials were retained.'); return false; }
+      for (const record of records.values()) {
+        record.materials = pairs.get(record.sourceMesh); record.materialSlot = sourceSlot(record.sourceMesh);
+        record.mesh.userData.materialSlot = record.materialSlot;
+        record.mesh.material = record.generation === 0 ? record.materials.outerMaterial : [record.materials.outerMaterial, record.materials.innerMaterial];
+      }
+      notify(); return true;
     },
     update(next) {
       options = sanitizeFractureOptions({ ...options, ...next });

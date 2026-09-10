@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { ConvexHull } from 'three/addons/math/ConvexHull.js';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createKitParts, KIT_GROUPS, KIT_SHAPES } from './kit-geometry.js';
+import { createWorkshopParts, sanitizeWorkshopOptions, WORKSHOP_GROUPS, WORKSHOP_SHAPES, WORKSHOP_CATALOG } from './workshop-geometry.js';
 
 // All surface detail here is real geometry. Faces remain coherent polygons until
 // the final upload, so triangulation never becomes the visible surface language.
@@ -14,6 +16,7 @@ export const SHAPE_GROUPS = [
   { id: 'structures', label: 'Structures', shapes: ['wall', 'monolith', 'columns', 'stairs', 'ruins', 'cairn'] },
   { id: 'architecture', label: 'Architecture', shapes: KIT_GROUPS.architecture },
   { id: 'furniture', label: 'Furniture', shapes: KIT_GROUPS.furniture },
+  ...WORKSHOP_GROUPS,
 ];
 export const SHAPE_LABELS = {
   boulder: 'Boulder', stack: 'Rock steps', slab: 'Slab', spire: 'Spire', crystals: 'Crystals', arch: 'Rock arch',
@@ -22,6 +25,7 @@ export const SHAPE_LABELS = {
   smallBlock: 'Small block', mediumBlock: 'Medium block', largeBlock: 'Large block', lowRamp: 'Low ramp', steepRamp: 'Steep ramp', cornerRamp: 'Corner ramp', platform: 'Platform',
   roundArch: 'Round arch', pointedArch: 'Pointed arch', flatArch: 'Flat arch', bridge: 'Bridge', roundColumn: 'Round column', squareColumn: 'Square column', brokenColumn: 'Broken column', plinth: 'Plinth', doorway: 'Doorway',
   bench: 'Bench', table: 'Table', chair: 'Chair', stool: 'Stool',
+  ...Object.fromEntries(Object.entries(WORKSHOP_CATALOG).map(([id, entry]) => [id, entry.label])),
 };
 
 function randomGenerator(seed) {
@@ -733,6 +737,42 @@ function buildKitAsset(options, material) {
   return finalizeAsset(group, options, { grounded, links, unsupported, settledChunks: [], jointTolerance: 0, method: 'convex-volume-intersection' });
 }
 
+function buildWorkshopAsset(options, material) {
+  const group = new THREE.Group();
+  group.name = `Procedural ${SHAPE_LABELS[options.shape]} ${options.seed}`;
+  for (const part of createWorkshopParts(options.shape, options)) {
+    const metadata = { ...part.geometry.userData };
+    // A vessel's floor and rim need crease normals. Averaging all adjacent
+    // faces there can point a smooth normal inside a sharply concave neck.
+    const creased = toCreasedNormals(part.geometry, .7);
+    if (creased !== part.geometry) part.geometry.dispose();
+    const geometry = addSurfaceAttributes(creased, false);
+    // ExtrudeGeometry distinguishes caps and sides for generic multimaterials.
+    // Both are exterior here; Pinata reserves material group 1 for fresh cuts.
+    geometry.clearGroups();
+    Object.assign(geometry.userData, metadata, { displacementWeight: .035, smoothSurface: false });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = part.name;
+    mesh.userData.materialSlot = part.materialSlot;
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  // Authored assembled parts overlap at their joints. Keep concave shapes as
+  // true closed surfaces: a convex hull would incorrectly fill their openings.
+  group.updateMatrixWorld(true);
+  const bounds = group.children.map(mesh => new THREE.Box3().setFromObject(mesh));
+  const minimum = Math.min(...bounds.map(box => box.min.y));
+  const grounded = bounds.flatMap((box, i) => box.min.y < minimum + .002 ? [i] : []), links = [];
+  for (let i = 0; i < bounds.length; i++) for (let j = 0; j < i; j++) if (bounds[i].clone().expandByScalar(.002).intersectsBox(bounds[j])) links.push([i, j]);
+  const reached = new Set(grounded);
+  for (let pass = 0; pass < bounds.length; pass++) for (const [a, b] of links) {
+    if (reached.has(a)) reached.add(b);
+    if (reached.has(b)) reached.add(a);
+  }
+  const unsupported = bounds.flatMap((_, i) => reached.has(i) ? [] : [i]);
+  return finalizeAsset(group, options, { grounded, links, unsupported, settledChunks: [], jointTolerance: .002, method: 'authored-assembly-overlap' });
+}
+
 function buildDesignedAsset(options, material) {
   const group = new THREE.Group(), rng = randomGenerator(options.seed), pieces = [];
   group.name = `Procedural ${options.shape} ${options.seed}`;
@@ -853,7 +893,7 @@ function finalizeAsset(group, options, connectivity) {
   group.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(group);
   const dimensions = bounds.getSize(new THREE.Vector3()), center = bounds.getCenter(new THREE.Vector3());
-  const scale = Math.min(KIT_SHAPES.has(options.shape) ? 1 : Infinity, 3.6 / dimensions.x, 3.4 / dimensions.y, 3.2 / dimensions.z);
+  const scale = Math.min(KIT_SHAPES.has(options.shape) || WORKSHOP_SHAPES.has(options.shape) ? 1 : Infinity, 3.6 / dimensions.x, 3.4 / dimensions.y, 3.2 / dimensions.z);
   for (const mesh of group.children) {
     mesh.position.x = (mesh.position.x - center.x) * scale;
     mesh.position.y = (mesh.position.y - bounds.min.y) * scale;
@@ -886,6 +926,7 @@ export function buildAsset(input = {}, material) {
     geometryNoiseScale: clamp(Number.isFinite(input.geometryNoiseScale) ? input.geometryNoiseScale : (Number.isFinite(input.noiseScale) ? input.noiseScale : 2), 0.3, 8),
     noiseSeed: Number.isFinite(Number(input.noiseSeed)) ? Number(input.noiseSeed) : undefined,
   };
+  if (WORKSHOP_SHAPES.has(options.shape)) return buildWorkshopAsset({ ...options, ...sanitizeWorkshopOptions(input) }, material);
   if (KIT_SHAPES.has(options.shape)) return buildKitAsset(options, material);
   if (SHAPE_GROUPS.slice(1).some(section => section.shapes.includes(options.shape))) return buildDesignedAsset(options, material);
   const rng = randomGenerator(options.seed);

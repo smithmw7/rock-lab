@@ -22,8 +22,11 @@ The **Shape** inspector opens to a scrollable **All** library. Search by object 
 | Structures | Block wall, monolith, columns, stairs, ruins, cairn | Running-bond masonry, landmarks, volcanic columns, route markers, ruins kits |
 | Architecture | Round/pointed/flat arches, small bridge, round/square/broken columns, plinth, doorway | Openings, crossings, architectural supports, and display pieces |
 | Furniture | Bench, table, chair, stool | Assembled seating and table props with solid component parts |
+| Tools | Hammer, knife, hatchet | Composite props with interchangeable heads or blades and separate material roles |
+| Metal | Plate, rod, tube, ring, I-beam, angle bracket, hex bolt, gear | Machined stock, structural supports, and mechanical props |
+| Lathe | Bowl, vase, jar, urn, planter, saucer, goblet, metal/wooden candlesticks | Hollow pottery and turned decorative forms with editable spline profiles |
 
-There are **38 objects**, including a [20-object modular expansion](OBJECT-LIBRARY.md). The new kit uses shared units; its small, medium, and large blocks have nominal sides of 0.8, 1.5, and 2.5 units before edge wear or displacement. Existing rock forms keep their original presentation scale. These are geometry presets and can use any current material; they do not introduce a procedural wood material.
+There are **58 objects**, including the [modular kit and workshop expansion](OBJECT-LIBRARY.md). The modular kit uses shared units; its small, medium, and large blocks have nominal sides of 0.8, 1.5, and 2.5 units before edge wear or displacement. Existing rock forms keep their original presentation scale. All geometry presets can use any current material. Workshop objects supply an initial finish when selected.
 
 Six **world presets** combine shapes, materials, lighting, and ground: Alpine, Desert, Volcanic, Ruins, Quarry, and Frozen. These are starting recipes. Every component can be changed independently afterward. The Structures family contains actual multi-piece assemblies, not thumbnails of suggested assets.
 
@@ -31,7 +34,7 @@ The seed, plane cuts/detail, irregularity/distortion, and bevel controls generat
 
 ## Materials and noise
 
-The **Material** inspector includes ten materials in two families. **Stone & ice** contains the original seven:
+The **Material** inspector includes 25 materials in five families. **Stone & ice** contains the original seven:
 
 - Alpine slate: cool stone with broad painted planes and creases.
 - Glacier ice: opaque cyan planes and pale internal fracture patterns.
@@ -42,6 +45,8 @@ The **Material** inspector includes ten materials in two families. **Stone & ice
 - Black obsidian: a dielectric black surface with low roughness and bright environment highlights.
 
 **Glass & crystal** adds **Clear glass**, **Included quartz**, and **Translucent ice**. These use physical transmission, refraction, absorption, dispersion, and procedural internal detail. They are separate from Glacier ice. The [research and controls guide](../TRANSLUCENT-MATERIALS.md) compares the shader approaches and explains their rendering limits.
+
+**Metals** adds steel, iron, aluminum, chrome, copper, bronze, brass, and gold. **Wood** adds oak, walnut, and weathered wood. **Ceramic** adds terracotta, porcelain, celadon, and stoneware. The [workshop guide](WORKSHOP.md) covers brushing, wear, grain, glaze, and the spline lathe. For composite props, **Object part** selects the head/blade, handle, or fittings before editing its **Outer / Inner** material pair.
 
 Selecting a material restores its authored base roughness. **Surface roughness** is then an absolute PBR control: low values are polished, high values are matte. Rock metalness stays zero.
 
@@ -116,7 +121,7 @@ A normal map changes lighting, while displacement moves vertices. Three's GPU di
 
 ## Save, restore, and reuse
 
-**File → Save recipe** downloads a version 3 JSON recipe containing shape, seed, geometry, independent outer/inner materials, channel views, lighting, ground, and fracture settings. Fracture recipes restore the intact asset, ready for a new test; they do not serialize moving debris. **File → Load recipe** or drag-and-drop restores it. Version 1 and 2 recipes are accepted with defaults for newly introduced controls. Camera position, turntable, wireframe, active inspector, and comparison mode are not serialized.
+**File → Save recipe** downloads a version 4 JSON recipe containing shape, seed, geometry, spline profile, tool variants, independent outer/inner materials for every part, channel views, lighting, ground, and fracture settings. Fracture recipes restore the intact asset, ready for a new test; they do not serialize moving debris. **File → Load recipe** or drag-and-drop restores it. Versions 1–3 are accepted with defaults for newly introduced controls. Camera position, turntable, wireframe, active inspector, and comparison mode are not serialized.
 
 **File → Save image** downloads the current viewport, including floor and reflections, as a PNG. The app currently exports recipes and PNGs. It does not export GLB or baked texture maps.
 
