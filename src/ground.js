@@ -113,6 +113,54 @@ float groundChip(vec2 local, float seed, float radius) {
   return groundBand(edge, radius);
 }
 
+// Three curved, tapered blades share each jittered root. The small fixed
+// neighborhood allows tufts to cross cell boundaries without square seams.
+// Returning cover, a pale ridge, tuft color, and smooth interior relief keeps grass directional rather
+// than merely adding green noise. Fine strokes fade with the pixel footprint.
+vec4 groundGrassTufts(vec2 p) {
+  vec2 base = floor(p);
+  float footprint = max(length(dFdx(p)), length(dFdy(p)));
+  float detail = 1.0 - smoothstep(.45, 1.35, footprint);
+  vec4 result = vec4(0.0);
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 id = base + vec2(float(x), float(y));
+      float seed = groundHash(id + 71.3);
+      vec2 root = id + .5 + (vec2(groundHash(id + 9.1), groundHash(id + 29.7)) - .5) * .66;
+      vec2 local = p - root;
+      float tuftAngle = seed * 6.2831853;
+      vec2 tuftLocal = mat2(cos(tuftAngle), -sin(tuftAngle), sin(tuftAngle), cos(tuftAngle)) * local;
+      for (int blade = 0; blade < 3; blade++) {
+        float variation = groundHash(id + float(blade) * 13.9 + 34.6);
+        // A fixed fan and quadratic bend avoid per-blade trigonometry.
+        float fan = float(blade) - 1.0;
+        float cosine = blade == 1 ? 1.0 : .7518057;
+        vec2 q = mat2(cosine, -fan * .6593847, fan * .6593847, cosine) * tuftLocal;
+        float t = q.y / (.46 + variation * .39);
+        float curveT = clamp(t, 0.0, 1.0);
+        float bend = curveT * (2.0 - curveT) * (variation - .36) * .28;
+        float width = .09 * max(1.0 - t, 0.0) + .004;
+        float edge = abs(q.x - bend);
+        float bladeMask = groundBand(edge, width) * smoothstep(-.035, .055, t) * (1.0 - smoothstep(.94, 1.02, t));
+        float ridge = groundBand(abs(q.x - bend + width * .22), max(width * .24, .003)) * bladeMask;
+        // Relief slopes across the whole blade instead of jumping at its
+        // silhouette, so close views do not turn every rim into a bright scratch.
+        float profile = (1.0 - smoothstep(0.0, max(width, .005), edge)) * bladeMask;
+        if (bladeMask > result.x) result = vec4(bladeMask, ridge, seed, profile);
+      }
+    }
+  }
+  result.xyw *= detail;
+  return result;
+}
+
+float groundStoneEdge(vec2 local, float seed) {
+  float angle = seed * 6.2831853;
+  vec2 q = mat2(cos(angle), -sin(angle), sin(angle), cos(angle)) * local;
+  q *= vec2(1.0, 1.0 + groundHash(vec2(seed, 8.2)) * .8);
+  return max(max(abs(q.x) * .93, abs(q.y)), abs(q.x * .69 + q.y * .73));
+}
+
 // Color is scene-linear. Height stays procedural and perturbs the PBR normal;
 // it does not create geometric displacement or change the flat reflection plane.
 void groundSurface(vec2 p, out vec3 tint, out float height, out float rough, out float reflectivity) {
@@ -230,7 +278,7 @@ void groundSurface(vec2 p, out vec3 tint, out float height, out float rough, out
     height = bevel * .004 + cloud * .0007 + grain * .0002;
     rough = mix(.59, .24, wet) + (tile - .5) * .07 + joint * .24;
     reflectivity = mix(.13, .76, wet) * (1.0 - joint * .86);
-  } else if (uGroundType > 6.5) {
+  } else if (uGroundType > 6.5 && uGroundType < 7.5) {
     vec2 cell, local; float border;
     groundCells(p * .85, cell, local, border);
     float crack = groundBand(border, .007) * smoothstep(.48, .69, groundFbm(p * 1.3));
@@ -249,6 +297,84 @@ void groundSurface(vec2 p, out vec3 tint, out float height, out float rough, out
     height = clumps * .002 + grain * .0004 + grit * .0015 - crack * .004;
     rough = mix(.98, .73, damp) - grit * .035;
     reflectivity = .008 + damp * damp * .14;
+  } else if (uGroundType > 7.5 && uGroundType < 9.5) {
+    bool dry = uGroundType > 8.5;
+    vec2 turfP = p * (dry ? 8.2 : 10.5);
+    vec4 tufts = groundGrassTufts(turfP);
+    float growth = groundFbm(p * .83 + 47.2);
+    float soil = dry ? smoothstep(.52, .70, growth) : smoothstep(.65, .81, growth);
+    float cover = tufts.x * (1.0 - soil * .94);
+    float fine = groundFilteredNoise(p * 37.0);
+    vec3 undergrowth = dry
+      ? mix(vec3(.10, .103, .031), vec3(.235, .185, .065), broad)
+      : mix(vec3(.023, .069, .015), vec3(.061, .142, .025), broad * .8 + growth * .2);
+    vec3 bladeColor = dry
+      ? mix(vec3(.21, .186, .058), vec3(.43, .333, .135), tufts.z)
+      : mix(vec3(.037, .117, .020), vec3(.112, .218, .039), tufts.z);
+    vec3 soilColor = mix(vec3(.097, .065, .031), vec3(.176, .124, .061), broad * .6 + fine * .4);
+    tint = mix(undergrowth * (.88 + fine * .22), soilColor, soil);
+    tint = mix(tint, bladeColor * (.95 + tufts.y * .06), cover);
+    float damp = wet * (.55 + growth * .45);
+    tint *= mix(1.0, .73, damp);
+    height = groundFilteredNoise(p * 13.0) * .0027 + (tufts.w * .0015 + tufts.y * .00025) * (1.0 - soil);
+    rough = mix(.99, .84, damp) - cover * .025;
+    reflectivity = .004 + damp * damp * mix(.043, .095, soil);
+  } else if (uGroundType > 9.5 && uGroundType < 10.5) {
+    float clumps = groundFilteredNoise(p * 11.0);
+    float fine = groundFilteredNoise(p * 49.0);
+    vec2 cell, local; float border;
+    vec2 litterP = p * 3.0;
+    groundCells(litterP, cell, local, border);
+    float seed = groundHash(cell + 82.3), angle = seed * 6.2831853;
+    vec2 q = mat2(cos(angle), -sin(angle), sin(angle), cos(angle)) * local;
+    // Tapered fallen leaves and a restrained center vein, with most cells bare.
+    float leafWidth = .105 * max(1.0 - pow(abs(q.y) / .26, 1.4), 0.0);
+    float leaf = groundBand(abs(q.x + sin(q.y * 9.0) * .018), leafWidth) * (1.0 - smoothstep(.24, .27, abs(q.y))) * step(.77, seed);
+    float leafVein = groundBand(abs(q.x), .007) * leaf;
+    float detail = 1.0 - smoothstep(.50, 1.45, length(fwidth(litterP)));
+    leaf *= detail; leafVein *= detail;
+    vec2 rootsP = p * 1.7, rootID = floor(rootsP), rootLocal = fract(rootsP) - .5;
+    float rootSeed = groundHash(rootID + 15.8);
+    float rootCurve = rootLocal.x + sin(rootLocal.y * 5.4 + rootSeed * 6.3) * .15;
+    float root = groundBand(abs(rootCurve), .011) * (1.0 - smoothstep(.26, .48, abs(rootLocal.y))) * step(.82, rootSeed);
+    root *= 1.0 - smoothstep(.48, 1.35, length(fwidth(rootsP)));
+    tint = mix(vec3(.037, .023, .013), vec3(.115, .077, .040), broad * .6 + clumps * .4);
+    tint *= .87 + fine * .24;
+    tint = mix(tint, mix(vec3(.15, .071, .023), vec3(.275, .163, .055), seed), leaf * .87);
+    tint = mix(tint, vec3(.15, .110, .059), root * .7 + leafVein * .14);
+    float damp = wet * smoothstep(.23, .68, broad);
+    tint *= mix(1.0, .65, damp);
+    height = clumps * clumps * .009 + fine * .00065 + leaf * .002 + root * .0021;
+    rough = mix(.99, .79, damp) - leaf * .045;
+    reflectivity = .005 + damp * damp * .11 * (1.0 - leaf * .75);
+  } else if (uGroundType > 10.5 && uGroundType < 11.5) {
+    vec2 cell, local; float border;
+    vec2 stoneP = p * 4.2;
+    groundCells(stoneP, cell, local, border);
+    float seed = groundHash(cell + 26.5);
+    float radius = .16 + groundHash(cell + 83.7) * .23;
+    float edge = groundStoneEdge(local, seed);
+    float stones = groundBand(edge, radius) * smoothstep(.08, .22, seed);
+    float cap = smoothstep(0.0, .075, radius - edge);
+    float stoneFade = 1.0 - smoothstep(.65, 1.6, length(fwidth(stoneP)));
+    stones *= stoneFade; cap *= stoneFade;
+    vec2 gritCell, gritLocal; float gritBorder;
+    vec2 gritP = p * 20.0;
+    groundCells(gritP, gritCell, gritLocal, gritBorder);
+    float gritSeed = groundHash(gritCell + 37.1);
+    float grit = groundChip(gritLocal, gritSeed, .11 + gritSeed * .11) * step(.55, gritSeed);
+    grit *= 1.0 - smoothstep(.55, 1.35, length(fwidth(gritP)));
+    float fine = groundFilteredNoise(p * 35.0);
+    vec3 soilColor = mix(vec3(.112, .073, .037), vec3(.224, .157, .084), broad * .68 + fine * .32);
+    vec3 stoneColor = mix(vec3(.111, .109, .089), vec3(.285, .266, .214), seed);
+    stoneColor = mix(stoneColor, vec3(.224, .135, .075), smoothstep(.69, .94, seed) * .56);
+    tint = mix(soilColor, vec3(.244, .222, .167), grit * .6);
+    tint = mix(tint, stoneColor * (.79 + cap * .25), stones);
+    float damp = wet * (.35 + broad * .65);
+    tint *= mix(1.0, .62, damp);
+    height = fine * .0018 + grit * .0017 + stones * cap * (.012 + seed * .016);
+    rough = mix(.98, .72, damp) - stones * .09;
+    reflectivity = .007 + damp * damp * mix(.105, .21, stones);
   }
 }
 
@@ -394,7 +520,7 @@ export function createGround(renderer, scene, options = {}) {
         #include <opaque_fragment>`);
     material.userData.shader = shader;
   };
-  material.customProgramCacheKey = () => 'rock-lab-ground-pbr-eight-surfaces-v3';
+  material.customProgramCacheKey = () => 'rock-lab-ground-pbr-twelve-surfaces-v4';
 
   const floor = new THREE.Mesh(geometry, material);
   floor.name = 'Procedural ground surface';

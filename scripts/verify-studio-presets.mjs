@@ -12,7 +12,8 @@ import { createWorldPresets } from '../src/world-presets.js';
 // Verify the authored catalog itself, including actual deterministic geometry.
 // Browser rendering, recipe migration, and user interactions have a separate QA.
 const originalIds = ['alpine', 'desert', 'volcanic', 'ruins', 'quarry', 'frozen'];
-const expectedGrounds = ['studio', 'asphalt', 'sand', 'slate', 'travertine', 'terrazzo', 'hexTile', 'earth'];
+const expectedGrounds = ['studio', 'asphalt', 'sand', 'slate', 'travertine', 'terrazzo', 'hexTile', 'earth', 'meadow', 'dryGrass', 'forestDirt', 'rockySoil'];
+const authoredPresetGrounds = ['studio', 'asphalt', 'sand', 'slate', 'travertine', 'terrazzo', 'hexTile', 'earth'];
 const material = new MeshBasicMaterial();
 const labels = new Set(), styles = new Set(), reports = [];
 const diversity = { shapes: new Set(), surfaces: new Set(), grounds: new Set(), lighting: new Set(), families: new Set() };
@@ -76,7 +77,7 @@ try {
   for (const id of originalIds) assert(Object.hasOwn(looks, id), `Original preset ${id} must remain available`);
   assert.deepEqual(Object.keys(grounds).sort(), expectedGrounds.toSorted());
   assert.deepEqual(Object.keys(GROUND_TYPES).sort(), expectedGrounds.toSorted());
-  assert.equal(GROUND_PRESETS.length, 8);
+  assert.equal(GROUND_PRESETS.length, 12);
   assert.equal(Object.keys(LIGHTING_PRESETS).length, 8);
   assert.equal(normalizeGroundId('concrete'), 'travertine');
   assert.equal(normalizeGroundId('wood'), 'slate');
@@ -111,7 +112,7 @@ try {
   }
   assert(diversity.shapes.size >= 20, 'Fifty new presets should explore the object library');
   assert(diversity.surfaces.size >= 15, 'Fifty new presets should explore the material families');
-  assert.equal(diversity.grounds.size, 8, 'The new presets should demonstrate every ground');
+  assert.deepEqual([...diversity.grounds].sort(), authoredPresetGrounds.toSorted(), 'The authored world presets retain their original ground variety');
   assert.equal(diversity.lighting.size, 8, 'The new presets should demonstrate every lighting rig');
   assert.equal(allocated, disposed, 'Verification must release all temporary geometry');
   console.log(JSON.stringify({ passed: true, presets: reports.length, newPresets: reports.length - originalIds.length, diversity: Object.fromEntries(Object.entries(diversity).map(([key, values]) => [key, [...values]])), allocated, disposed, reports }, null, 2));

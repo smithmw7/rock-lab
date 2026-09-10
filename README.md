@@ -25,7 +25,7 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 | **25 materials** | Stone and ice, glass and crystal, eight metals, three woods, and four ceramic finishes |
 | **Composite tools** | Four hammer heads, three knife blades, and a hatchet with separate handle, working end, and fitting materials |
 | **Spline lathe** | Drag six profile points to reshape bowls, vases, jars, urns, planters, saucers, goblets, and candlesticks |
-| **8 grounds** | Studio, wet asphalt, sand, slate flagstone, warm travertine, ivory terrazzo, basalt hex tiles, and packed earth with planar reflections |
+| **12 grounds** | Studio, wet asphalt, sand, slate flagstone, warm travertine, ivory terrazzo, basalt hex tiles, packed earth, meadow grass, dry grass, forest dirt, and rocky soil with planar reflections |
 | **56 world presets** | Scroll through authored looks, start with Randomize, or tap a preset again for a new seed |
 | **8 lighting setups** | Alpine, soft studio, sunset, daylight, golden hour, moonlight, overcast, and dramatic |
 | **Surface detail** | Seeded noise, normal relief, grain, cracks, contrast, snow, and geometry displacement |

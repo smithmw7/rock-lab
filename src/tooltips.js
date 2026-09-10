@@ -97,7 +97,7 @@ export const PARAMETER_HELP = Object.freeze({
   internalCracks: 'Adds cracks within glass and crystal that change with the viewing angle. Zero removes them; higher values make internal fracture lines more visible without splitting the mesh.',
   reflection: 'Mixes the ground’s planar reflection into the scene. Zero hides it; higher values make the mirrored asset more visible. Ground roughness and wetness affect its appearance.',
   groundWetness: 'Controls the ground’s wet finish. Lower values look drier; higher values darken wet areas and strengthen their glossy appearance. The result varies by ground type.',
-  groundScale: 'Sets the size of the ground pattern. Lower values produce smaller, denser stones, tiles, or grains; higher values make each feature larger.',
+  groundScale: 'Sets the size of the ground pattern. Lower values produce smaller, denser grass tufts, stones, tiles, or soil details; higher values make each feature larger.',
   asphaltRoughness: 'Controls the wet asphalt finish. Lower values give a glossier surface and sharper reflection; higher values make wet areas more matte. Wetness controls how much of this finish is visible.',
   asphaltRoughnessVariation: 'Varies roughness across wet asphalt. Zero gives a more uniform finish; higher values break it into patches with different highlight and reflection softness.',
   asphaltNormalStrength: 'Controls asphalt grain and ripple relief in the shading. Zero flattens that relief; higher values strengthen small highlights and distortion without moving the ground mesh.',

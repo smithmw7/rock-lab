@@ -8,6 +8,10 @@ export const GROUND_PRESETS = Object.freeze([
   { key: 'terrazzo', label: 'Ivory terrazzo', description: 'An ivory matrix with flush stone chips in charcoal, clay, and muted green.', wetness: .22, reflection: .32, scale: 1 },
   { key: 'hexTile', label: 'Basalt hex tiles', description: 'Dark hexagonal tiles with satin faces and fine, pale grout.', wetness: .2, reflection: .3, scale: 1 },
   { key: 'earth', label: 'Packed earth', description: 'Compacted brown soil with scattered grit and sparse drying cracks.', wetness: .08, reflection: .04, scale: 1 },
+  { key: 'meadow', label: 'Meadow grass', description: 'Lush green tufts with curved blades and patches of lighter growth.', wetness: .12, reflection: .04, scale: 1 },
+  { key: 'dryGrass', label: 'Dry grass', description: 'Olive and golden straw tufts with sparse, sun-dried soil patches.', wetness: 0, reflection: .02, scale: 1 },
+  { key: 'forestDirt', label: 'Forest dirt', description: 'Rich brown soil with soft clumps, leaf litter, and fine roots.', wetness: .18, reflection: .08, scale: 1 },
+  { key: 'rockySoil', label: 'Rocky soil', description: 'Weathered stones and broken gravel scattered through warm earth.', wetness: .08, reflection: .06, scale: 1 },
 ].map(preset => Object.freeze(preset)));
 
 export const GROUND_TYPES = Object.freeze(Object.fromEntries(GROUND_PRESETS.map(preset => [preset.key, preset])));

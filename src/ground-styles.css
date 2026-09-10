@@ -38,10 +38,41 @@
     radial-gradient(ellipse,#58432d55 0 17%,transparent 52%) 0 0/9px 11px,
     linear-gradient(120deg,#725438,#9d7b52 44%,#785936 77%,#aa8960);
 }
+.ground-swatch.meadow{
+  background:
+    repeating-linear-gradient(72deg,transparent 0 5px,#a5b7688c 6px 7px,transparent 8px 12px),
+    repeating-linear-gradient(112deg,transparent 0 8px,#274d3577 9px 11px,transparent 12px 19px),
+    radial-gradient(ellipse at 28% 36%,#7c9852,transparent 67%),
+    linear-gradient(145deg,#57753b,#32533a 60%,#6a8b49);
+}
+.ground-swatch.dryGrass{
+  background:
+    repeating-linear-gradient(62deg,transparent 0 6px,#e3c58a99 7px 8px,transparent 9px 15px),
+    repeating-linear-gradient(118deg,transparent 0 10px,#69593266 11px 13px,transparent 14px 23px),
+    radial-gradient(ellipse at 76% 65%,#836548,transparent 47%),
+    linear-gradient(130deg,#9b9b61,#c1ac6a 55%,#8b8850);
+}
+.ground-swatch.forestDirt{
+  background:
+    radial-gradient(ellipse,#b18b4e 0 13%,transparent 17%) 5px 2px/39px 23px,
+    repeating-linear-gradient(152deg,transparent 0 24px,#99806155 25px 26px,transparent 28px 47px),
+    radial-gradient(ellipse,#80644155 0 14%,transparent 55%) 0 0/13px 11px,
+    linear-gradient(145deg,#3f3025,#6d5136 44%,#443626 79%,#745838);
+}
+.ground-swatch.rockySoil{
+  background:
+    conic-gradient(from 28deg at 50% 40%,transparent 0 16%,#a99d83 17% 41%,#817966 42% 63%,transparent 64%) 0 0/35px 29px,
+    conic-gradient(from 78deg at 40% 50%,transparent 0 23%,#c4b49b 24% 49%,#887a65 50% 68%,transparent 69%) 12px 8px/49px 37px,
+    radial-gradient(ellipse,#bda78a 0 12%,transparent 20%) 3px 7px/13px 11px,
+    linear-gradient(130deg,#806446,#a28560 58%,#735d44);
+}
 
 /* The light floor fills the viewport, including the area behind its HUD. */
 .stage:is([data-ground=travertine],[data-ground=terrazzo]) .asset-label h1{color:#27333a;text-shadow:0 1px 12px #fff5}
 .stage:is([data-ground=travertine],[data-ground=terrazzo]) :is(.asset-label p,.eyebrow,.stats,.stats span,#surface-status,.stage-bottom,#destruction-status){color:#3d4c51;text-shadow:0 1px 6px #fff5}
 .stage:is([data-ground=travertine],[data-ground=terrazzo]) .live-dot{background:#42665c}
-.stage:is([data-ground=slate],[data-ground=hexTile],[data-ground=earth]) .asset-label h1{color:#edf1f2;text-shadow:0 1px 9px #0a111bb3}
+.stage:is([data-ground=slate],[data-ground=hexTile],[data-ground=earth],[data-ground=meadow],[data-ground=forestDirt],[data-ground=rockySoil]) .asset-label h1{color:#edf1f2;text-shadow:0 1px 9px #0a111bb3}
 .stage:is([data-ground=slate],[data-ground=hexTile],[data-ground=earth]) :is(.asset-label p,.eyebrow,.stats,.stats span,#surface-status,.stage-bottom,#destruction-status){color:#c1cbd0;text-shadow:0 1px 5px #071119cc}
+.stage:is([data-ground=meadow],[data-ground=forestDirt],[data-ground=rockySoil]) :is(.asset-label p,.eyebrow,.stats,.stats span,#surface-status,.stage-bottom,#destruction-status){color:#d1dad6;text-shadow:0 1px 5px #071119cc}
+.stage[data-ground=dryGrass] .asset-label h1{color:#202d28;text-shadow:0 1px 9px #e5dfbd66}
+.stage[data-ground=dryGrass] :is(.asset-label p,.eyebrow,.stats,.stats span,#surface-status,.stage-bottom,#destruction-status){color:#344039;text-shadow:0 1px 5px #e5dfbd66}

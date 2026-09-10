@@ -61,7 +61,7 @@ try {
   assert.equal(initial.stats.fracture.enabled, true, 'The published app starts with tap destruction enabled');
   assert.equal(await page.locator('#looks [data-look]').count(), 56);
   assert.equal(await page.locator('#looks button').first().getAttribute('id'), 'random-look');
-  assert.equal(await page.locator('#grounds [data-ground]').count(), 8);
+  assert.equal(await page.locator('#grounds [data-ground]').count(), 12);
   assert.equal(await page.locator('#lighting option').count(), 8);
   assert.equal(await page.locator('#reference, #reference-dialog, button[title]').count(), 0);
   report.checks.publicBuildReady = { passed: true, library: initial.audio.library, decoded: initial.audio.loaded, shape: initial.shape, geometries: initial.stats.geometries };
@@ -154,7 +154,7 @@ try {
   const lookAfter = await page.evaluate(() => ({ ...window.rockLab.state }));
   assert.notEqual(lookAfter.seed, lookBefore.seed);
   delete lookAfter.seed; delete lookBefore.seed; assert.deepEqual(lookAfter, lookBefore);
-  report.checks.productionStudioExpansion = { passed: true, presets: 56, grounds: 8, lighting: 8, repeatPresetChangesOnlySeed: true };
+  report.checks.productionStudioExpansion = { passed: true, presets: 56, grounds: 12, lighting: 8, repeatPresetChangesOnlySeed: true };
 
   const assets = report.responses.filter(response => ['script', 'stylesheet'].includes(response.type) || /\.(?:js|css|wav|wasm|webp)(?:\?|$)/i.test(response.url));
   assert.ok(assets.some(asset => asset.url.includes('/assets/index-') && asset.url.endsWith('.js')));

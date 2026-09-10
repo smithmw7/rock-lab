@@ -1,5 +1,13 @@
 # Validation history
 
+## Grass and natural soil floors (September 10, 2026)
+
+- Added Meadow grass, Dry grass, Forest dirt, and Rocky soil, bringing the ground library to 12. Grass uses curved tapered blade tufts, independent tuft colors, and exposed-soil patches. Forest dirt combines clumped soil, sparse leaves, and fine roots; rocky soil combines bevelled angular stones and smaller gravel.
+- All four use the existing scale, wetness, planar reflection, and recipe controls. Fine details fade below pixel size. Relief changes shading normals on the existing flat plane; it does not add grass geometry or affect placement/collision heights. Existing eight floor formulas and authored world presets remain unchanged.
+- Focused browser QA passes on matching final source hashes: all four actual GPU renders and scale/wetness/reflection controls, six distinct-floor comparisons, native recipe downloads/imports, separate Object and Scene environments, scene file restoration, stable resources across three cycles of all 12 grounds, and 390px touch cards and label help. The 19 captures include a contact sheet and closer grass detail; grass relief was softened after visual review. No browser errors, warnings, or failed requests. The standard web-game client selected Meadow grass, with its screenshot and text state inspected.
+- Required geometry verification passes 504 baseline cases, 168 displacement cases, and 10 path cases. All 95 fracture cases and the 56-preset catalog verifier pass with 12 valid grounds. Production build and private-asset exclusions pass; the existing Vite chunk-size warning remains.
+- All 152 parameter tooltip checks and the seven desktop/mobile menu checks pass. The production browser smoke passes default-on fracture, public audio, reset, native downloads, gallery, Scene Undo, and nested asset paths. These are browser checks; physical-device performance remains unverified.
+
 ## Ground and object contact snapping (September 10, 2026)
 
 - Scene Snap now defaults to Ground & objects. Snap distance controls nearby surface attraction; Grid remains an explicit alternative with its existing movement increments. Numeric transforms remain exact, and grid visibility is independent. Scene files preserve snap mode/distance; older files default to surface mode.
