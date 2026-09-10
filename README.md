@@ -16,6 +16,7 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 | | What's inside |
 | :--- | :--- |
 | **Scene builder** | Multiple independent instances, selection, move/rotate/scale handles, Undo/Redo, snapping, and shaded/wireframe/collider/normal views |
+| **Camera controls** | Top, left, right, front, back, and isometric views; orthographic/perspective switching and an 18–135 mm radial lens dial |
 | **8 scene examples** | Editable landscapes, ruins, workshops, and courtyards with rendered previews in the Gallery |
 | **84 objects** | Rocks, terrain, modular architecture, furniture, tools, metal stock, pottery, and paths in a searchable scrolling library |
 | **Terrain kit** | 16 cliffs, rock pillars, flat platforms, and stone ramps using the original material system |
@@ -43,6 +44,8 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 6. Use **File → Save recipe / Save scene** to keep your settings, or **File → Save image** for a PNG.
 
 Parameter labels have explanations on hover, keyboard focus, and touch. Action buttons stay free of tooltips. **View** contains framing, variations, turntable, and wireframe; **Help** contains the controls guide.
+
+The viewport's upper-right camera gizmo switches viewing direction. **Orthographic** starts on; switch it off to use the **Focal length** dial, with lower values showing a wider field of view and higher values zooming in. Drag around the dial or use arrow keys when it has focus. Object and Scene keep separate camera drafts while you work. Camera views are inspection settings, not part of exported asset recipes.
 
 ## Start from a scene
 

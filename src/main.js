@@ -23,6 +23,8 @@ import { createSceneEditor } from './scene-editor.js';
 import { createScenePanel } from './scene-ui.js';
 import { SCENE_PRESETS, createScenePreset } from './scene-presets.js';
 import { createSceneGallery } from './scene-gallery.js';
+import { createCameraRig } from './camera-rig.js';
+import { createCameraHUD } from './camera-hud.js';
 import './style.css';
 import './menu.css';
 import './library.css';
@@ -31,6 +33,7 @@ import './workshop-materials.css';
 import './path.css';
 import './ground-styles.css';
 import './studio.css';
+import './camera-hud.css';
 
 const tintDefaults={tint:'#ffffff',tintAmount:0};
 const state={...defaults,...ASPHALT_DEFAULTS,...OPTICAL_DEFAULTS,...WORKSHOP_DEFAULTS,...WORKSHOP_MATERIAL_DEFAULTS,...structuredClone(PATH_DEFAULTS),...tintDefaults};
@@ -104,13 +107,26 @@ renderer.toneMappingExposure=1.1;
 renderer.transmissionResolutionScale=.75;
 stage.prepend(renderer.domElement);
 renderer.domElement.setAttribute('aria-label','Interactive 3D procedural asset preview');
-const camera=new THREE.OrthographicCamera(-5,5,4,-4,.1,100);
+let camera=new THREE.OrthographicCamera(-5,5,4,-4,.1,100);
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;controls.dampingFactor=.08;
 const turntableSpeed=.24;
 controls.autoRotateSpeed=turntableSpeed*60/(Math.PI*2);
-controls.maxPolarAngle=Math.PI*.49;controls.minPolarAngle=Math.PI*.08;
+controls.maxPolarAngle=Math.PI;controls.minPolarAngle=0;
 controls.minZoom=.45;controls.maxZoom=3;controls.enablePan=true;
+controls.minDistance=.5;controls.maxDistance=1000;
+const cameraRig=createCameraRig({camera,controls,onCameraChange:next=>{camera=next;sceneEditor?.setCamera(next);}});
+const cameraHUD=createCameraHUD({root:document.querySelector('#camera-hud'),
+  onView:view=>{
+    rotation=false;document.querySelector('#rotate').checked=false;
+    cameraRig.setView(view);cameraHUD.update(cameraRig.getState());menus.refresh();
+  },
+  onProjection:projection=>{
+    const distance=camera.position.distanceTo(controls.target);cameraRig.setProjection(projection);
+    shiftCameraEnvironment(camera.position.distanceTo(controls.target)-distance);cameraHUD.update(cameraRig.getState());
+  },
+  onFocalLength:value=>{cameraRig.setFocalLength(value);cameraHUD.update(cameraRig.getState());},
+});
 const hemi=new THREE.HemisphereLight('#c5d7ef','#353440',.85);scene.add(hemi);
 const key=new THREE.DirectionalLight('#ffe5bf',2.7);
 key.position.set(-4,7,5);key.castShadow=true;key.shadow.mapSize.set(2048,2048);
@@ -498,9 +514,30 @@ function frameAsset(){
   if(inScene()){frameScene(false);return;}
   if(!fractureRequested)assembly.rotation.y=0;
   if(isPath()){camera.position.set(7,8,9);controls.target.set(0,0,0);fitPathCamera();return;}
+  scene.fog.near=19;scene.fog.far=38;camera.far=100;
   frameSize=viewMode==='lineup'?7.6:5.4;
-  camera.position.set(...(viewMode==='lineup'?[2.5,4.5,14]:[7,5.1,8]));camera.zoom=1;
-  controls.target.set(0,viewMode==='lineup'?.85:1.35,0);controls.update(0);resize();
+  camera.position.set(...(viewMode==='lineup'?[2.5,4.5,14]:[7,5.1,8]));camera.up.set(0,1,0);camera.zoom=1;
+  controls.target.set(0,viewMode==='lineup'?.85:1.35,0);controls.update(0);resize();fitPerspectiveFrame(projectedCameraDepth(new THREE.Box3().setFromObject(assembly)));
+}
+function projectedCameraDepth(bounds){
+  if(bounds.isEmpty())return 0;
+  camera.updateMatrixWorld();const projected=new THREE.Box3();
+  for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z])projected.expandByPoint(new THREE.Vector3(x,y,z).applyMatrix4(camera.matrixWorldInverse));
+  return projected.max.z-projected.min.z;
+}
+function cameraFrameHeight(aspect=stage.clientWidth/Math.max(1,stage.clientHeight)){
+  return inScene()?Math.max(4,sceneFrameBounds?.height??frameSize,(sceneFrameBounds?.width??frameSize)/aspect):isPath()&&pathFrameBounds?Math.max(2.8,pathFrameBounds.height,pathFrameBounds.width/aspect):viewMode==='lineup'?Math.max(5.2,14.5/aspect):(aspect<1?frameSize/aspect:frameSize);
+}
+function fitPerspectiveFrame(depth=0){
+  if(!camera.isPerspectiveCamera)return;
+  const before=camera.position.distanceTo(controls.target);
+  cameraRig.fitHeight(cameraFrameHeight(),{depth});
+  const distance=camera.position.distanceTo(controls.target),delta=distance-before;
+  shiftCameraEnvironment(delta,depth);
+}
+function shiftCameraEnvironment(delta,depth=0){
+  scene.fog.near=Math.max(camera.near,scene.fog.near+delta);scene.fog.far=Math.max(scene.fog.near+1,scene.fog.far+delta);
+  camera.far=Math.max(100,scene.fog.far,camera.position.distanceTo(controls.target)+depth*2);camera.updateProjectionMatrix();
 }
 function fitPathCamera(){
   if(!assets.length)return;
@@ -520,13 +557,12 @@ function fitPathCamera(){
   scene.fog.near=distance+size.length()*1.5;scene.fog.far=scene.fog.near+35;
   const shadowSize=Math.max(12,size.length());positionKeyLight(center,shadowSize/4);
   Object.assign(key.shadow.camera,{left:-shadowSize,right:shadowSize,top:shadowSize,bottom:-shadowSize,far:shadowSize*5});key.shadow.camera.updateProjectionMatrix();
-  resize();
+  resize();fitPerspectiveFrame(extent.z);
 }
 function resize(){
   const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;
   renderer.setSize(w,h);ground.resize(w,h);const aspect=w/h;
-  const height=inScene()?Math.max(4,sceneFrameBounds?.height??frameSize,(sceneFrameBounds?.width??frameSize)/aspect):isPath()&&pathFrameBounds?Math.max(2.8,pathFrameBounds.height,pathFrameBounds.width/aspect):viewMode==='lineup'?Math.max(5.2,14.5/aspect):(aspect<1?frameSize/aspect:frameSize);
-  camera.left=-height*aspect/2;camera.right=height*aspect/2;camera.top=height/2;camera.bottom=-height/2;camera.updateProjectionMatrix();
+  cameraRig.resize(aspect,cameraFrameHeight(aspect));
 }
 new ResizeObserver(resize).observe(stage);
 function generate(resetCamera=false){
@@ -561,7 +597,7 @@ function generate(resetCamera=false){
   document.querySelector('#triangles').textContent=triangles.toLocaleString();document.querySelector('#generation-time').textContent=lastGeneration.toFixed(1);
   syncInputs();
   if(isPath()){if(resetCamera)frameAsset();else fitPathCamera();}
-  else{scene.fog.near=19;scene.fog.far=38;positionKeyLight();Object.assign(key.shadow.camera,{left:-12,right:12,top:12,bottom:-12,far:35});key.shadow.camera.updateProjectionMatrix();if(resetCamera)frameAsset();}
+  else{positionKeyLight();Object.assign(key.shadow.camera,{left:-12,right:12,top:12,bottom:-12,far:35});key.shadow.camera.updateProjectionMatrix();if(resetCamera)frameAsset();}
   return true;
 }
 function queueGenerate(){cancelAnimationFrame(pendingGenerate);pendingGenerate=requestAnimationFrame(()=>generate());}
@@ -607,6 +643,7 @@ document.querySelector('#reset-asphalt').addEventListener('click',()=>{Object.as
 document.querySelector('#reset').addEventListener('click',()=>{
   if(inScene())setWorkspaceMode('object');
   if(inspector==='path')setInspector('shape');
+  cameraRig.setProjection('orthographic',{preserveScale:false});cameraRig.setFocalLength(50);
   setFractureEnabled(false);fractureOptions=sanitizeFractureOptions(FRACTURE_DEFAULTS);fractureController?.update(fractureOptions);fracturePanel.setOptions(fractureOptions);
   Object.assign(state,defaults,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,WORKSHOP_DEFAULTS,WORKSHOP_MATERIAL_DEFAULTS,structuredClone(PATH_DEFAULTS),tintDefaults);Object.assign(innerState,innerDefaults);
   for(const slot of ['handle','trim'])for(const side of ['outer','inner'])Object.assign(partStates[slot][side],makePartState(slot==='handle'?'oak':'brass'));
@@ -707,6 +744,7 @@ function sanitizeEnvironment(input){
   return Object.fromEntries(environmentKeys.map(key=>[key,options[key]]));
 }
 function captureCamera(){return {
+  rig:cameraRig.capture(),
   position:camera.position.toArray(),target:controls.target.toArray(),zoom:camera.zoom,far:camera.far,frameSize,pathFrameBounds:structuredClone(pathFrameBounds),sceneFrameBounds:structuredClone(sceneFrameBounds),
   fog:[scene.fog.near,scene.fog.far],keyPosition:key.position.toArray(),keyTarget:key.target.position.toArray(),
   shadow:Object.fromEntries(['left','right','top','bottom','far'].map(k=>[k,key.shadow.camera[k]])),
@@ -714,10 +752,12 @@ function captureCamera(){return {
 function restoreCamera(saved){
   if(!saved)return;
   controls.autoRotate=false;const damping=controls.enableDamping;controls.enableDamping=false;controls.update(0);
+  if(saved.rig)cameraRig.restore(saved.rig);
+  else cameraRig.setProjection('orthographic',{preserveScale:false});
   camera.position.fromArray(saved.position);controls.target.fromArray(saved.target);camera.zoom=saved.zoom;camera.far=saved.far;
   frameSize=saved.frameSize;pathFrameBounds=structuredClone(saved.pathFrameBounds);sceneFrameBounds=structuredClone(saved.sceneFrameBounds);[scene.fog.near,scene.fog.far]=saved.fog;
   key.position.fromArray(saved.keyPosition);key.target.position.fromArray(saved.keyTarget);key.target.updateMatrixWorld();
-  Object.assign(key.shadow.camera,saved.shadow);key.shadow.camera.updateProjectionMatrix();controls.update(0);controls.enableDamping=damping;resize();
+  Object.assign(key.shadow.camera,saved.shadow);key.shadow.camera.updateProjectionMatrix();controls.update(0);controls.enableDamping=damping;resize();cameraHUD.update(cameraRig.getState());
 }
 function frameScene(selection=false){
   const bounds=sceneEditor.getBounds(selection);if(bounds.isEmpty()){bounds.set(new THREE.Vector3(-2,0,-2),new THREE.Vector3(2,2,2));}
@@ -734,7 +774,7 @@ function frameScene(selection=false){
   frameSize=Math.max(4,sceneFrameBounds.height,sceneFrameBounds.width/aspect);
   scene.fog.near=distance+size.length()*1.5;scene.fog.far=scene.fog.near+60;
   const shadowSize=Math.max(12,size.length());positionKeyLight(center,shadowSize/4);
-  Object.assign(key.shadow.camera,{left:-shadowSize,right:shadowSize,top:shadowSize,bottom:-shadowSize,far:shadowSize*5});key.shadow.camera.updateProjectionMatrix();resize();
+  Object.assign(key.shadow.camera,{left:-shadowSize,right:shadowSize,top:shadowSize,bottom:-shadowSize,far:shadowSize*5});key.shadow.camera.updateProjectionMatrix();resize();fitPerspectiveFrame(extent.z);
 }
 function buildSceneInstance(input){
   const data=normalizeObjectRecipe(input),pairs={};
@@ -943,7 +983,7 @@ document.querySelector('#recipe-file').addEventListener('change',event=>{readRec
 function stepPreview(delta){
   controls.autoRotate=rotation&&(fractureRequested||inScene())&&!sceneEditor?.getTransformControls().dragging;
   if(rotation&&!fractureRequested&&!inScene())assembly.rotation.y+=delta*turntableSpeed;
-  if(!inScene())fractureController?.step(delta);ground.step(delta);if(controls.enabled)controls.update(delta);sceneEditor?.step();
+  if(!inScene())fractureController?.step(delta);ground.step(delta);if(controls.enabled)controls.update(delta);sceneEditor?.step();cameraRig.sync();cameraHUD.update(cameraRig.getState());
 }
 let lastFrame=performance.now(),fpsStart=lastFrame,frames=0;
 renderer.setAnimationLoop(now=>{
@@ -977,12 +1017,13 @@ const menus=setupMenus(document.querySelector('.app-menubar'),{
 const cleanupTooltips=setupParameterTooltips();
 void audio.load().catch(()=>syncAudio());
 window.addEventListener('pagehide',()=>audio.stop());
-if(import.meta.hot)import.meta.hot.dispose(()=>{historyEvents.abort();audio.dispose();menus.destroy();objectLibrary.destroy();latheEditor.destroy();pathEditor.destroy();scenePanel.destroy();sceneGallery.destroy();sceneEditor.destroy();cleanupTooltips();});
-window.rockLab={scenePresets:SCENE_PRESETS,loadScenePreset,restorePreviousScene,getGalleryState,sceneEditor,setWorkspaceMode,get workspaceMode(){return workspaceMode;},controls,state,innerState,partStates,partMaterials,recipe,loadRecipe,generate,renderer,scene,camera,material,innerMaterial,ground,audio,setFractureEnabled,get fracture(){return fractureController;},getStats:()=>({triangles:Number(document.querySelector('#triangles').textContent.replaceAll(',','')),generationMs:lastGeneration,generationCount,drawCalls:renderer.info.render.calls,geometries:renderer.info.memory.geometries,programs:renderer.info.programs?.length,workspaceMode,scene:sceneEditor.getSnapshot(),viewMode,turntable:rotation,turntableMode:fractureRequested||inScene()?'camera':'asset',path:assets[0]?.userData.path,ground:ground.getStats(),audio:audio.getState(),fracture:fractureController?.getStats()??{enabled:false}}),ready:false};
+if(import.meta.hot)import.meta.hot.dispose(()=>{historyEvents.abort();audio.dispose();menus.destroy();objectLibrary.destroy();latheEditor.destroy();pathEditor.destroy();scenePanel.destroy();sceneGallery.destroy();sceneEditor.destroy();cameraHUD.destroy();cleanupTooltips();});
+window.rockLab={scenePresets:SCENE_PRESETS,loadScenePreset,restorePreviousScene,getGalleryState,sceneEditor,setWorkspaceMode,get workspaceMode(){return workspaceMode;},controls,state,innerState,partStates,partMaterials,recipe,loadRecipe,generate,renderer,scene,get camera(){return camera;},cameraRig,material,innerMaterial,ground,audio,setFractureEnabled,get fracture(){return fractureController;},getStats:()=>({triangles:Number(document.querySelector('#triangles').textContent.replaceAll(',','')),generationMs:lastGeneration,generationCount,drawCalls:renderer.info.render.calls,geometries:renderer.info.memory.geometries,programs:renderer.info.programs?.length,workspaceMode,camera:cameraRig.getState(),scene:sceneEditor.getSnapshot(),viewMode,turntable:rotation,turntableMode:fractureRequested||inScene()?'camera':'asset',path:assets[0]?.userData.path,ground:ground.getStats(),audio:audio.getState(),fracture:fractureController?.getStats()??{enabled:false}}),ready:false};
 
 window.render_game_to_text=()=>JSON.stringify({
   workspaceMode,scenePreset:activeScenePreset,scene:inScene()?sceneEditor.getSnapshot():undefined,
   coordinates:'Y up; floor y=0; x right and z depth in world space',
+  camera:cameraRig.getState(),
   shape:state.shape,seed:state.seed,preset:selectedLook,lighting:state.lighting,outer:state.surface,inner:innerState.surface,ground:state.ground,
   path:isPath()?{...assets[0]?.userData.path,points:state.pathPoints}:undefined,
   parts:shapes[effectiveShape()].kind==='composite'?Object.fromEntries(Object.entries(partStates).map(([slot,pair])=>[slot,{outer:pair.outer.surface,inner:pair.inner.surface}])):undefined,

@@ -1,5 +1,14 @@
 # Validation history
 
+## View gizmo and lens controls (September 10, 2026)
+
+- Added Top, Left, Right, Front, Back, and true isometric view snaps, a live SVG orientation indicator, an Orthographic toggle, and an accessible 18–135 mm radial focal-length dial. Orthographic remains the default. The dial preserves its value while disabled in orthographic mode; perspective changes lens field of view at a fixed camera position.
+- Projection switching preserves the target-plane scale. Separate Object and Scene drafts restore projection, focal length, camera pose, zoom, and framing. Ray picking, transform handles, reflections, PNG exports, paths, and variation framing use the active camera. View snaps stop the turntable and clear residual orbit movement.
+- `verify:camera` passes 100 projection combinations plus lens/aspect preservation, six stable views, explicit depth-aware framing, camera restoration, and real Scene ray picking. Existing Scene and Scene-history verifiers pass.
+- `qa:camera` passes 19 groups with 17 reviewed screenshots: actual radial and keyboard input, center-drag dead zone, turntable-to-snap, long-lens regeneration and repeated framing, independent Object/Scene camera drafts, actual selection/transform drag/Undo in both projections, Object/Variations/Path framing, PNG download, label help, and desktop/390px/tall layouts. No browser errors or warnings.
+- Existing menus, all 150 parameter tooltips, turntable/fracture behavior, and Scene browser suites pass. The standard web-game client created 12 actual fragments through a perspective-camera pointer tap; screenshot and text state were inspected. The production build and public-asset exclusions pass, as does the production smoke covering real tap/reset, public sound, recipe download, Gallery, Scene Undo, and asset paths.
+- Long-lens camera distance now carries the fog range with it; ordinary seed/geometry regeneration preserves that range, while explicit framing reestablishes a stable baseline. Camera settings remain inspection state rather than exported asset-recipe data. Physical touch-device testing remains unverified; narrow browser checks establish layout and emulated interaction only. The pre-existing Vite chunk-size warning remains.
+
 ## Rich procedural wood (September 10, 2026)
 
 - Added five grain recipes and five controls for irregular growth, spiral knots, heavy branching splits, bark coverage, and raised normal relief. Each wood species keeps an independent palette. Five closed Timber forms bring the library to 84 objects: worn plank, timber beam, bark log, split log, and stump.

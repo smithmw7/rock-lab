@@ -37,7 +37,9 @@
     "verify:fracture-wake": "node scripts/verify-fracture-wake.mjs",
     "qa:fracture-realtime": "node scripts/qa-fracture-realtime.mjs",
     "verify:wood": "node scripts/verify-wood-geometry.mjs",
-    "qa:wood": "node scripts/qa-wood.mjs"
+    "qa:wood": "node scripts/qa-wood.mjs",
+    "verify:camera": "node scripts/verify-camera.mjs",
+    "qa:camera": "node scripts/qa-camera.mjs"
   },
   "dependencies": {
     "@dgreenheck/three-pinata": "2.0.1",

@@ -126,6 +126,14 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
   function updateSelectedRecipe(...args){return edit('Change material',()=>updateRecordRecipe(...args));}
   function restoreOrbit(){if(dragOrbitState!==null&&orbitControls){orbitControls.enabled=dragOrbitState;dragOrbitState=null;}}
   function stopDrag(){if(gizmo.dragging)gizmo.dragging=false;restoreOrbit();pointerStart=null;activePointers.clear();}
+  function setCamera(next){
+    if(!next?.isCamera)throw new TypeError('Scene editor requires a camera.');
+    if(destroyed||next===camera)return false;
+    // End a transform transaction before changing the projection used for its
+    // drag plane. Picking and TransformControls must always share the camera.
+    stopDrag();gizmo.axis=null;camera=next;gizmo.camera=next;
+    camera.updateMatrixWorld(true);updateSelection();notify();return true;
+  }
   function updateSelection(){
     const record=selected();selectionHelper.visible=active&&!!record;
     if(record){record.node.updateWorldMatrix(true,true);selectedBox.setFromObject(record.content);selectionHelper.updateMatrixWorld(true);}
@@ -336,7 +344,7 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
     for(const record of records.values())releaseRecord(record);records.clear();root.removeFromParent();grid.removeFromParent();grid.geometry.dispose();for(const material of Array.isArray(grid.material)?grid.material:[grid.material])material.dispose();selectionHelper.removeFromParent();selectionHelper.geometry.dispose();selectionHelper.material.dispose();
     for(const material of [wireMaterial,normalMaterial,colliderMaterial,colliderEdgeMaterial])material.dispose();undoEntries.length=0;redoEntries.length=0;editBefore=null;editDepth=0;destroyed=true;
   }
-  return{setActive,add,replaceSelected,select,duplicateSelected,deleteSelected,setTool:tool=>updateSettings({tool}),updateSettings,setTransform,renameSelected,updateSelectedRecipe,serialize,load,getSnapshot,getRoot:()=>root,getBounds,undo,redo,getHistoryState,beginEdit,endEdit,clearHistory,
+  return{setActive,setCamera,add,replaceSelected,select,duplicateSelected,deleteSelected,setTool:tool=>updateSettings({tool}),updateSettings,setTransform,renameSelected,updateSelectedRecipe,serialize,load,getSnapshot,getRoot:()=>root,getBounds,undo,redo,getHistoryState,beginEdit,endEdit,clearHistory,
     getSelected:()=>{const record=selected();return record?{id:record.id,name:record.name,group:record.content,node:record.node,recipe:copyRecipe(record.recipe)}:null;},
     getTransformControls:()=>gizmo,getSelectionHelper:()=>selectionHelper,step:()=>{if(active&&!destroyed)updateSelection();},destroy};
 }

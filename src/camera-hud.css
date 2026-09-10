@@ -1,0 +1,89 @@
+/* Camera controls stay on the viewport edge, independent of renderer size. */
+#camera-hud {
+  position: absolute; z-index: 4; top: 18px; right: 20px; width: 176px;
+  padding: 10px; border: 1px solid #50606b99; border-radius: 12px;
+  background: #1c262dee; color: #d4e0e7; box-shadow: 0 5px 24px #07101724;
+  backdrop-filter: blur(12px); touch-action: manipulation; user-select: none;
+}
+#camera-hud:empty { display: none; }
+.camera-view-picker { display: grid; grid-template-columns: 50px minmax(0,1fr); align-items: center; gap: 7px; }
+.camera-orientation { display: block; width: 50px; height: 78px; overflow: visible; }
+.camera-axis-orbit { fill: #101b2280; stroke: #43535e80; stroke-width: 1; }
+.camera-axis-center { fill: #dce5eb; }
+.camera-axis-parts text { fill: #17252e; font: 700 10px system-ui,sans-serif; text-anchor: middle; dominant-baseline: central; }
+.camera-orientation .camera-view-name { fill: #a5b9c6; font: 600 9px system-ui,sans-serif; letter-spacing: .08em; text-anchor: middle; }
+.camera-view-buttons { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; }
+#camera-hud .camera-view-buttons button {
+  min-width: 0; min-height: 30px; padding: 4px 2px; border: 1px solid #455761;
+  border-radius: 5px; background: #2b3a4480; color: #b7c9d4; font-size: 10px; font-weight: 500;
+}
+#camera-hud .camera-view-buttons button:hover { background: #435662; color: #f1f6fa; border-color: #839caa; }
+#camera-hud .camera-view-buttons button[aria-pressed=true] { background: #d5e2e9; color: #21333e; border-color: #d5e2e9; }
+.camera-projection-field { display: flex; justify-content: space-between; align-items: center; min-height: 46px; gap: 5px; margin-top: 7px; border-top: 1px solid #40515b; font-size: 10px; }
+#camera-orthographic {
+  appearance: none; display: block; position: relative; flex: none; width: 48px; height: 44px;
+  margin: 0; padding: 0; border: 0; border-radius: 7px; background: transparent; cursor: pointer;
+}
+#camera-orthographic::before { content: ''; position: absolute; inset: 8px 0; border: 1px solid #627785; border-radius: 20px; background: #3b4d59; transition: background .15s; }
+#camera-orthographic::after { content: ''; position: absolute; top: 12px; left: 4px; width: 20px; height: 20px; border-radius: 50%; background: #b6c6d0; transition: transform .15s, background .15s; }
+#camera-orthographic:checked::before { background: #c5d8df; border-color: #d7e5ea; }
+#camera-orthographic:checked::after { transform: translateX(20px); background: #283d49; }
+.camera-lens-field { display: flex; align-items: center; justify-content: space-between; gap: 3px; }
+.camera-lens-copy { min-width: 0; }
+.camera-lens-copy label { display: block; font-size: 10px; line-height: 1.4; }
+#camera-focal-value { display: block; margin-top: 3px; font-size: 20px; line-height: 1.1; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
+#camera-focal-value span { font-size: 10px; font-weight: 400; color: #90a7b7; letter-spacing: 0; }
+#camera-focal-hint { margin: 5px 0 0; font-size: 8px; white-space: nowrap; color: #91a8b8; }
+.camera-dial { position: relative; flex: none; width: 68px; height: 68px; border-radius: 50%; }
+.camera-dial svg { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.camera-dial-track,.camera-dial-fill { fill: none; stroke: #526572; stroke-width: 3; stroke-linecap: round; }
+.camera-dial-fill { stroke: #d4e7ef; }
+.camera-dial-face { fill: #2c3d49; stroke: #657e8f; stroke-width: 1; }
+.camera-dial-needle { stroke: #e5f1f7; stroke-width: 3; stroke-linecap: round; }
+.camera-dial-center { fill: #718c9e; }
+#camera-focal-length {
+  appearance: none; position: absolute; inset: 0; display: block; width: 100%; height: 100%;
+  margin: 0; padding: 0; border: 0; border-radius: 50%; opacity: 0; background: transparent;
+  cursor: grab; touch-action: none;
+}
+#camera-focal-length::-webkit-slider-thumb { appearance: none; width: 1px; height: 1px; box-shadow: none; }
+#camera-focal-length::-moz-range-thumb { width: 1px; height: 1px; border: 0; }
+.camera-dial:has(input:focus-visible) { outline: 2px solid #cde4ee; outline-offset: 3px; }
+.camera-dragging #camera-focal-length { cursor: grabbing; }
+#camera-hud[data-projection=orthographic] .camera-dial { opacity: .38; }
+#camera-focal-length:disabled { cursor: default; }
+#camera-hud[data-projection=orthographic] #camera-focal-value { color: #91a8b8; }
+#camera-hud .parameter-help-label { min-width: 0; }
+
+/* Keep existing HUD controls in their own corners. */
+#stage .stats { top: auto; right: auto; left: 35px; bottom: 49px; pointer-events: none; }
+#stage .view-controls { top: auto; right: 20px; bottom: 106px; }
+#stage .asset-label { max-width: calc(100% - 245px); }
+#stage .asset-label h1,#stage .asset-label p { max-width: 100%; }
+#stage #destruction-hud { max-width: calc(100% - 245px); flex-wrap: wrap; }
+#stage.scene-active #camera-hud { top: calc(var(--scene-toolbar-height,62px) + 28px); }
+#stage.scene-active .asset-label { max-width: calc(100% - 235px); }
+#stage.scene-active .asset-label h1,#stage.scene-active .asset-label p { max-width: 100%; }
+
+@media(max-width:720px) {
+  #camera-hud { top: 14px; right: 12px; width: 158px; padding: 8px; border-radius: 10px; }
+  .camera-view-picker { grid-template-columns: 39px minmax(0,1fr); gap: 4px; }
+  .camera-orientation { width: 39px; height: 74px; }
+  #camera-hud .camera-view-buttons button { min-height: 31px; font-size: 9px; }
+  .camera-view-buttons { gap: 4px; }
+  .camera-projection-field { font-size: 9px; margin-top: 7px; }
+  .camera-lens-copy label { font-size: 9px; }
+  #camera-focal-value { font-size: 19px; }
+  #camera-focal-hint { font-size: 7px; }
+  .camera-dial { width: 62px; height: 62px; }
+  #stage .stats { left: 20px; bottom: 35px; max-width: calc(100% - 185px); font-size: 8px; }
+  #stage .view-controls { right: 60px; bottom: 40px; }
+  #stage .asset-label,#stage.scene-active .asset-label { max-width: calc(100% - 205px); }
+  #stage .asset-label h1,#stage.scene-active .asset-label h1 { font-size: 19px; white-space: normal; }
+  #stage #destruction-hud { right: auto; top: 137px; max-width: calc(100% - 205px); gap: 6px; }
+  #stage #destruction-hud button { margin-left: 0; }
+  #stage.scene-active #camera-hud { top: calc(var(--scene-toolbar-height,157px) + 24px); }
+}
+@media(prefers-reduced-motion:reduce) {
+  #camera-orthographic::before,#camera-orthographic::after { transition: none; }
+}

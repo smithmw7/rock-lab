@@ -3,6 +3,8 @@ import './tooltips.css';
 // Help belongs to parameter labels. Action buttons, tabs, preset cards, and
 // disclosure summaries deliberately never receive tooltip behavior.
 export const PARAMETER_HELP = Object.freeze({
+  'camera-orthographic': 'Switches to an orthographic camera: parallel edges stay parallel and objects keep the same apparent size regardless of depth. Turn it off for perspective. Your focal length is kept for when you return to perspective.',
+  'camera-focal-length': 'Sets the perspective lens focal length from 18 to 135 millimeters. Lower values show a wider field of view with stronger perspective; higher values give a tighter view. Drag around the dial or use arrow keys; Home and End select the limits. Available in Perspective mode.',
   'scene-name': 'Renames the selected scene object in the object list. A distinct name makes repeated shapes easier to find; the procedural shape and material are unchanged.',
   'scene-position-x': 'Moves the selected scene object along the world X axis, from -50 to 50 world units. Negative and positive values move to opposite sides of the scene origin.',
   'scene-position-y': 'Moves the selected scene object vertically, from -50 to 50 world units. Zero places its original base at ground height; higher values lift it and negative values lower it below the ground.',
