@@ -73,6 +73,9 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
   const getStats = () => ({
     enabled, paused, busy, meshes: records.size,
     fragments: [...records.values()].filter(record => record.generation > 0).length,
+    sleeping: [...records.values()].filter(record => record.generation > 0 && record.body.isSleeping()).length,
+    resting: [...records.values()].filter(record => record.generation > 0 && (record.restGroup || record.body.isSleeping())).length,
+    active: [...records.values()].filter(record => record.generation > 0 && !record.restGroup && !record.body.isSleeping()).length,
     generation: Math.max(0, ...[...records.values()].map(record => record.generation)),
     lastFractureMs: Math.round(lastFractureMs * 10) / 10, failures, message,
     triangles: [...records.values()].reduce((sum, record) => sum + triangleCount(record.mesh.geometry), 0),
@@ -103,6 +106,7 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
     if (worker) { worker.terminate(); worker = null; }
   };
   const removeRecord = record => {
+    wakeRestGroup(record);
     colliderRecords.delete(record.collider.handle); incomingMotion.delete(record.collider.handle);
     pendingImpacts.delete(record.mesh.uuid); collisionCooldown.delete(record.mesh.uuid);
     if (record.body?.isValid()) world.removeRigidBody(record.body);
@@ -114,13 +118,22 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
     record.createdAt = simulationTime;
     record.mesh.geometry.computeBoundingSphere();
     record.contactRadius = record.mesh.geometry.boundingSphere.radius;
+    record.hullVertices = record.collider.shape.vertices;
+    record.wakeRadius = record.contactRadius + record.mesh.geometry.boundingSphere.center.length();
+    record.restTime = 0;
+    record.restGroup = null;
+    record.body.userData = { pieceId: record.mesh.uuid, generation: record.generation, resting: false };
+    record.restPosition = new THREE.Vector3();
+    record.restRotation = new THREE.Quaternion();
     container.add(record.mesh);
   };
   const makeBody = (mesh, dynamic) => {
     const vertices = mesh.geometry.attributes.position.array;
     const descriptor = RAPIER.ColliderDesc.convexHull(vertices);
     if (!descriptor) throw new Error('A fragment did not form a solid physics hull. The previous piece was retained.');
-    const bodyDescriptor = dynamic ? RAPIER.RigidBodyDesc.dynamic().setCcdEnabled(true).setLinearDamping(0.18).setAngularDamping(0.3) : RAPIER.RigidBodyDesc.fixed();
+    // Rest groups own sleep and wake together; native sleep can otherwise
+    // deactivate just one member while its supporting contacts still move.
+    const bodyDescriptor = dynamic ? RAPIER.RigidBodyDesc.dynamic().setCanSleep(false).setCcdEnabled(true).setLinearDamping(0.18).setAngularDamping(0.3) : RAPIER.RigidBodyDesc.fixed();
     bodyDescriptor.setTranslation(mesh.position.x, mesh.position.y, mesh.position.z).setRotation(mesh.quaternion);
     const body = world.createRigidBody(bodyDescriptor);
     try {
@@ -254,9 +267,18 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
         const direction = next.mesh.position.clone().sub(impact);
         if (direction.lengthSq() < 1e-6) direction.set(Math.sin(index * 4.1), 0.7, Math.cos(index * 3.7));
         direction.normalize().addScaledVector(hit?.direction || new THREE.Vector3(), 0.35); direction.y += 0.42; direction.normalize();
-        const impulse = direction.multiplyScalar(options.impulse * Math.max(0.02, next.body.mass()));
+        // The blast setting describes a launch speed. A minimum impulse made
+        // tiny shards accelerate hundreds of times faster than larger pieces.
+        const impulse = direction.multiplyScalar(options.impulse * next.body.mass());
         next.body.applyImpulse(impulse, true);
-        next.body.applyTorqueImpulse({ x: Math.sin(index * 7.1 + options.seed) * options.impulse * next.body.mass() * 0.035, y: Math.cos(index * 3.1) * options.impulse * next.body.mass() * 0.035, z: Math.sin(index * 5.7) * options.impulse * next.body.mass() * 0.035 }, true);
+        // Add a bounded tumble instead of mass-scaled torque, whose inverse
+        // inertia response becomes extreme on very small or thin fragments.
+        const spin = options.impulse * 0.6;
+        next.body.setAngvel({
+          x: angularVelocity.x + Math.sin(index * 7.1 + options.seed) * spin,
+          y: angularVelocity.y + Math.cos(index * 3.1) * spin,
+          z: angularVelocity.z + Math.sin(index * 5.7) * spin,
+        }, true);
       }
       container.updateMatrixWorld(true);
       emitEvent({ type: 'break', pieceId: mesh.uuid, materialSlot: record.materialSlot, position: { x: impact.x, y: impact.y, z: impact.z }, fragmentCount: staged.length });
@@ -335,6 +357,142 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
     }
   }
 
+  function wakeRestGroup(record) {
+    if (!record.restGroup) return;
+    for (const member of record.restGroup) {
+      member.restGroup = null; member.restTime = 0;
+      member.body.userData.resting = false;
+      member.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+      member.body.setLinearDamping(0.18); member.body.setAngularDamping(0.3);
+    }
+  }
+
+  function wakeNearbyResting(dt) {
+    const resting = [...records.values()].filter(record => record.restGroup);
+    if (!resting.length) return;
+    const targets = resting.map(record => ({ record, position: record.body.translation() }));
+    for (const record of records.values()) {
+      if (record.generation === 0 || record.restGroup || record.body.isSleeping()) continue;
+      const velocity = record.body.linvel(), angular = record.body.angvel();
+      const speed = Math.hypot(velocity.x, velocity.y, velocity.z) + Math.hypot(angular.x, angular.y, angular.z) * record.wakeRadius;
+      if (speed < 0.05 && simulationTime - record.createdAt > 0.35) continue;
+      const position = record.body.translation();
+      for (const target of targets) {
+        if (!target.record.restGroup) continue;
+        const reach = record.wakeRadius + target.record.wakeRadius + speed * dt + 0.04;
+        const dx = position.x - target.position.x, dy = position.y - target.position.y, dz = position.z - target.position.z;
+        if (dx * dx + dy * dy + dz * dz <= reach * reach) wakeRestGroup(target.record);
+      }
+    }
+  }
+
+  function settleRestingContacts(dt) {
+    const dynamic = [...records.values()].filter(record => record.generation > 0 && !record.restGroup);
+    for (const record of dynamic) if (!record.body.isSleeping()) {
+      record.body.setAngularDamping(0.3); record.body.setLinearDamping(0.18);
+    }
+    // Free flight and deliberately slippery surfaces keep Rapier's ordinary
+    // behavior. This assistance only handles the last small contact tremor.
+    if (options.gravity <= 0 || options.friction < 0.1) {
+      for (const record of dynamic) record.restTime = 0;
+      return;
+    }
+    if (!dynamic.some(record => !record.body.isSleeping())) {
+      for (const record of dynamic) record.restTime = 0;
+      return;
+    }
+
+    const graph = new Map(dynamic.map(record => [record, { neighbors: new Set(), restGroups: new Set(), supported: false }]));
+    for (const record of dynamic) {
+      const node = graph.get(record), neighbors = [];
+      world.contactPairsWith(record.collider, other => neighbors.push(other));
+      for (const other of neighbors) {
+        const neighbor = colliderRecords.get(other.handle);
+        world.contactPair(record.collider, other, (manifold, flipped) => {
+          let touching = false;
+          for (let i = 0; i < manifold.numContacts(); i++) {
+            const distance = manifold.contactDist(i);
+            // Predictive contacts can exist centimetres apart. Require a real
+            // loaded contact within Rapier's 5 mm tolerance plus 1 mm margin.
+            if (distance <= 0.006 && manifold.contactImpulse(i) > 0) touching = true;
+          }
+          if (!touching) return;
+          if (graph.has(neighbor)) node.neighbors.add(neighbor);
+          else {
+            if (neighbor?.restGroup) node.restGroups.add(neighbor.restGroup);
+            if (manifold.normal().y * (flipped ? 1 : -1) > 0.25 && manifold.friction() >= 0.1) node.supported = true;
+          }
+        });
+      }
+    }
+
+    // Quiet a supported contact group together. A still piece beside a moving
+    // one must remain responsive; touching airborne pieces have no anchor.
+    const visited = new Set();
+    for (const first of dynamic) {
+      if (visited.has(first)) continue;
+      const group = [], queue = [first], restingNeighbors = new Set(); let supported = false;
+      while (queue.length) {
+        const record = queue.pop(); if (visited.has(record)) continue;
+        visited.add(record); group.push(record);
+        const node = graph.get(record); supported ||= node.supported;
+        for (const restGroup of node.restGroups) restingNeighbors.add(restGroup);
+        for (const neighbor of node.neighbors) if (!visited.has(neighbor)) queue.push(neighbor);
+      }
+      let ready = supported;
+      for (const record of group) {
+        if (record.body.isSleeping()) { record.restTime = 0; continue; }
+        const velocity = record.body.linvel(), angular = record.body.angvel();
+        const position = record.body.translation(), rotation = record.body.rotation();
+        const speed = Math.hypot(velocity.x, velocity.y, velocity.z);
+        const surfaceSpeed = Math.hypot(angular.x, angular.y, angular.z) * record.contactRadius;
+        // Contact resistance damps the last rocking motion of curved shards.
+        // Normal damping returns as soon as a piece leaves support or speeds up.
+        if (supported && speed < 0.25 && simulationTime - record.createdAt >= 0.35) {
+          record.body.setAngularDamping(18); record.body.setLinearDamping(0.8);
+        }
+        if (!supported || speed > 0.25 || surfaceSpeed > 0.65 || simulationTime - record.createdAt < 0.35) {
+          record.restTime = 0; ready = false; continue;
+        }
+        const dot = Math.abs(record.restRotation.x * rotation.x + record.restRotation.y * rotation.y + record.restRotation.z * rotation.z + record.restRotation.w * rotation.w);
+        const norm = record.restRotation.length() * Math.hypot(rotation.x, rotation.y, rotation.z, rotation.w);
+        const turn = 2 * Math.sqrt(Math.max(0, 1 - Math.min(1, dot / norm) ** 2)) * record.contactRadius;
+        const travel = Math.hypot(position.x - record.restPosition.x, position.y - record.restPosition.y, position.z - record.restPosition.z) + turn;
+        const envelope = Math.min(0.04, Math.max(0.004, record.contactRadius * 0.06));
+        if (record.restTime === 0 || travel > envelope) {
+          record.restPosition.set(position.x, position.y, position.z);
+          record.restRotation.set(rotation.x, rotation.y, rotation.z, rotation.w);
+          record.restTime = dt;
+        } else record.restTime += dt;
+        if (record.restTime < 0.65) ready = false;
+      }
+      if (ready) {
+        const restGroup = new Set(group);
+        for (const neighbors of restingNeighbors) for (const record of neighbors) {
+          for (const member of record.restGroup || [record]) restGroup.add(member);
+        }
+        // Hold the settled pose with a fixed body. Wake the connected group
+        // before an approaching fragment collides, or when a member is cut.
+        // This avoids Rapier's unreliable manual-sleep transition on debris.
+        for (const record of restGroup) {
+          // Convex approximations can remain interlocked after their motion
+          // stops. Qualify by stable poses instead of requiring zero overlap,
+          // but never preserve a pose that leaves a shard below the floor.
+          const p = record.body.translation(), q = record.body.rotation();
+          const rowX = 2 * (q.x * q.y + q.w * q.z), rowY = 1 - 2 * (q.x * q.x + q.z * q.z), rowZ = 2 * (q.y * q.z - q.w * q.x);
+          let minimumY = Infinity;
+          for (let i = 0; i < record.hullVertices.length; i += 3) {
+            minimumY = Math.min(minimumY, p.y + rowX * record.hullVertices[i] + rowY * record.hullVertices[i + 1] + rowZ * record.hullVertices[i + 2]);
+          }
+          if (minimumY < -0.002) record.body.setTranslation({ x: p.x, y: p.y - minimumY - 0.002, z: p.z }, false);
+          record.body.setBodyType(RAPIER.RigidBodyType.Fixed, false);
+          record.restGroup = restGroup; record.restTime = 0;
+          record.body.userData.resting = true;
+        }
+      }
+    }
+  }
+
   const controller = {
     setSource(root) {
       if (disposed) return;
@@ -364,7 +522,11 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
       notify(); return true;
     },
     update(next) {
+      const previous = options;
       options = sanitizeFractureOptions({ ...options, ...next });
+      if (['gravity', 'friction', 'restitution'].some(key => options[key] !== previous[key])) {
+        for (const record of records.values()) wakeRestGroup(record);
+      }
       world.gravity = { x: 0, y: -options.gravity, z: 0 };
       floor.setFriction(options.friction); floor.setRestitution(options.restitution);
       for (const record of records.values()) { record.collider.setFriction(options.friction); record.collider.setRestitution(options.restitution); }
@@ -425,7 +587,8 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
       if (!enabled || paused || busy || disposed) { accumulator = 0; return; }
       accumulator += Math.min(0.1, Math.max(0, Number(dt) || 0));
       for (let count = 0; accumulator >= 1 / 60 && count < 6; count++) {
-        rememberIncomingMotion(); world.step(eventQueue); simulationTime += 1 / 60; collectContactEvents(); accumulator -= 1 / 60;
+        wakeNearbyResting(1 / 60);
+        rememberIncomingMotion(); world.step(eventQueue); simulationTime += 1 / 60; collectContactEvents(); settleRestingContacts(1 / 60); accumulator -= 1 / 60;
       }
       for (const record of [...records.values()]) {
         if (record.generation === 0) continue;

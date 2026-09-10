@@ -30,6 +30,7 @@ jobs:
       - run: npm run verify:scene
       - run: npm run verify:scene-presets
       - run: npm run verify:fracture
+      - run: npm run verify:fracture-settling
       - run: npm run build
       - run: npm run verify:publication
       - uses: actions/upload-pages-artifact@v5.0.0

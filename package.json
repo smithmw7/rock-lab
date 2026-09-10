@@ -9,6 +9,8 @@
     "preview": "vite preview --host 127.0.0.1 --strictPort",
     "verify": "node scripts/verify.mjs",
     "verify:fracture": "node scripts/verify-fracture.mjs",
+    "verify:fracture-settling": "node scripts/verify-fracture-settling.mjs",
+    "qa:fracture-settling": "node scripts/qa-fracture-settling.mjs",
     "qa:audio": "node scripts/qa-audio.mjs",
     "verify:publication": "node scripts/verify-publication.mjs",
     "qa:menus": "node scripts/qa-menus.mjs",

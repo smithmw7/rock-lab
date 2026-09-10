@@ -139,10 +139,11 @@ try {
   await page.mouse.move(point.x, point.y); await page.mouse.down();
   await page.mouse.move(point.x + 88, point.y + 22, { steps: 12 }); await page.mouse.up();
   const miss = await page.evaluate(async () => {
-    const THREE = await import('/node_modules/three/build/three.module.js');
-    const lab = window.rockLab, rect = lab.renderer.domElement.getBoundingClientRect(), ray = new THREE.Raycaster();
+    const lab = window.rockLab, rect = lab.renderer.domElement.getBoundingClientRect();
+    // Reuse the app's Three constructor so this check also works on a build.
+    const Raycaster = lab.sceneEditor.getTransformControls().getRaycaster().constructor, ray = new Raycaster();
     for (const [u, v] of [[.06, .22], [.08, .75], [.85, .15], [.88, .8]]) {
-      ray.setFromCamera(new THREE.Vector2(u * 2 - 1, 1 - v * 2), lab.camera);
+      ray.setFromCamera({ x: u * 2 - 1, y: 1 - v * 2 }, lab.camera);
       if (!ray.intersectObjects(lab.fracture.getMeshes()).length) return { x: rect.left + u * rect.width, y: rect.top + v * rect.height };
     }
     throw new Error('No verified empty canvas tap point found');
