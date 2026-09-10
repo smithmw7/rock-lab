@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#181b1e" />
+    <meta name="description" content="Create procedural 3D rocks, crystals and modular shapes in your browser. Explore materials, reflective grounds and interactive destruction, then save a reusable recipe." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Rock Lab · Procedural asset studio" />
+    <meta property="og:description" content="A browser studio for procedural 3D shapes, stylized materials, reflective grounds and interactive destruction." />
+    <meta property="og:url" content="https://smithmw7.github.io/rock-lab/" />
+    <meta property="og:image" content="https://smithmw7.github.io/rock-lab/social-preview.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://smithmw7.github.io/rock-lab/social-preview.png" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%238c9cad' d='M6 23 3 12 12 3 24 6 29 19 20 29Z'/%3E%3C/svg%3E" />
+    <title>Rock Lab · Procedural asset studio</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 23 3 12 12 3 24 6 29 19 20 29Z M3 12 15 14 24 6 M15 14 20 29 M15 14 6 23"/></svg><div>Rock Lab <span>Procedural asset studio</span></div></div>
+        <nav class="app-menubar" role="menubar" aria-label="Application menu">
+          <div class="app-menu-group">
+            <button id="menu-file" class="app-menu-trigger" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-file-items">File</button>
+            <div id="menu-file-items" class="app-menu-panel" role="menu" aria-labelledby="menu-file" hidden>
+              <button role="menuitem" data-menu-action="new-seed"><span>New variation</span><span class="menu-symbol" aria-hidden="true">↻</span></button>
+              <div role="separator"></div>
+              <button id="load-recipe" role="menuitem"><span>Load recipe…</span><span class="menu-symbol" aria-hidden="true">↑</span></button>
+              <button id="save-recipe" role="menuitem"><span>Save recipe…</span><span class="menu-symbol" aria-hidden="true">↓</span></button>
+              <button id="export-png" role="menuitem"><span>Save image…</span><span class="menu-symbol" aria-hidden="true">↓</span></button>
+              <div role="separator"></div>
+              <button role="menuitem" data-menu-action="reset"><span>Reset all settings</span></button>
+            </div>
+          </div>
+          <div class="app-menu-group">
+            <button id="menu-view" class="app-menu-trigger" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-view-items" tabindex="-1">View</button>
+            <div id="menu-view-items" class="app-menu-panel" role="menu" aria-labelledby="menu-view" hidden>
+              <button role="menuitemradio" aria-checked="true" data-menu-action="single"><span>Single asset</span><span class="menu-check" aria-hidden="true">✓</span></button>
+              <button role="menuitemradio" aria-checked="false" data-menu-action="lineup"><span>Variations</span><span class="menu-check" aria-hidden="true">✓</span></button>
+              <div role="separator"></div>
+              <button role="menuitem" data-menu-action="frame"><span>Frame asset</span><span class="menu-symbol" aria-hidden="true">⌖</span></button>
+              <button role="menuitemcheckbox" aria-checked="false" data-menu-action="turntable"><span>Turntable</span><span class="menu-check" aria-hidden="true">✓</span></button>
+              <button role="menuitemcheckbox" aria-checked="false" data-menu-action="wireframe"><span>Wireframe</span><span class="menu-check" aria-hidden="true">✓</span></button>
+            </div>
+          </div>
+          <div class="app-menu-group">
+            <button id="menu-help" class="app-menu-trigger" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-help-items" tabindex="-1">Help</button>
+            <div id="menu-help-items" class="app-menu-panel" role="menu" aria-labelledby="menu-help" hidden>
+              <button role="menuitem" data-menu-action="controls"><span>Using Rock Lab</span></button>
+              <button role="menuitem" data-menu-action="guide"><span>Game asset guide</span></button>
+              <div role="separator"></div>
+              <a role="menuitem" id="source-link" href="https://github.com/smithmw7/rock-lab" target="_blank" rel="noopener noreferrer"><span>Source on GitHub</span><span class="menu-symbol" aria-hidden="true">↗</span></a>
+            </div>
+          </div>
+        </nav>
+        <div class="header-actions"><button id="sound-toggle" aria-pressed="false" aria-label="Mute sound effects"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="sound-wave" d="M17 8a7 7 0 0 1 0 8m3-11a11 11 0 0 1 0 14"/><path class="sound-slash" d="m3 3 18 18"/></svg><span class="sound-label">Sound on</span></button></div>
+      </header>
+      <aside>
+        <nav class="inspector-tabs" role="tablist" aria-label="Inspector">
+          <button role="tab" id="tab-shape" data-panel="shape" aria-selected="true" aria-controls="panel-shape">Shape</button>
+          <button role="tab" id="tab-material" data-panel="material" aria-selected="false" aria-controls="panel-material">Material</button>
+          <button role="tab" id="tab-fracture" data-panel="fracture" aria-selected="false" aria-controls="panel-fracture">Fracture</button>
+          <button role="tab" id="tab-ground" data-panel="ground" aria-selected="false" aria-controls="panel-ground">Ground</button>
+          <button role="tab" id="tab-studio" data-panel="studio" aria-selected="false" aria-controls="panel-studio">Studio</button>
+        </nav>
+        <section id="panel-shape" role="tabpanel" aria-labelledby="tab-shape">
+          <div class="section-title"><span>01</span><h2>Shape library</h2><span class="count-badge">18 forms</span></div>
+          <div class="family-tabs" role="tablist" aria-label="Shape family" id="shape-families"></div>
+          <div class="shape-grid" id="shapes"></div>
+          <p class="control-note" id="shape-description"></p>
+          <div class="seed-row"><label for="seed">Seed</label><input id="seed" type="number" min="1" max="999999" value="18427" /><button id="new-seed" aria-label="Generate a new seed">↻</button></div>
+          <div id="geometry-controls"></div>
+          <div class="section-title separated"><span>02</span><h2>Geometry relief</h2></div>
+          <div id="displacement-controls"></div>
+          <p class="control-note">Displacement moves vertices and changes the silhouette. Enable wireframe in Studio to see the extra geometry.</p>
+        </section>
+        <section id="panel-material" role="tabpanel" aria-labelledby="tab-material" hidden>
+          <div class="family-tabs material-target-tabs" role="tablist" aria-label="Fracture material surface">
+            <button role="tab" id="material-outer" data-material-target="outer" aria-selected="true" aria-controls="material-editor">Outer</button>
+            <button role="tab" id="material-inner" data-material-target="inner" aria-selected="false" aria-controls="material-editor">Inner</button>
+          </div>
+          <p class="control-note" id="material-target-note">The original outside surface of the asset.</p>
+          <div id="material-editor" role="tabpanel" aria-labelledby="material-outer">
+          <div class="section-title"><span>01</span><h2>Material library</h2><span class="count-badge">10 types</span></div>
+          <div class="family-tabs material-family-tabs" role="tablist" aria-label="Material family">
+            <button role="tab" data-material-family="rock" aria-selected="true" aria-controls="materials">Stone &amp; ice</button>
+            <button role="tab" data-material-family="optical" aria-selected="false" aria-controls="materials">Glass &amp; crystal</button>
+          </div>
+          <div id="materials" class="material-grid" role="group" aria-label="Material style"></div>
+          <div class="select-row"><label for="material-tint">Tint color</label><input id="material-tint" type="color" value="#ffffff" /></div>
+          <div id="finish-controls"></div>
+          <div id="optical-controls-panel" hidden>
+            <div class="section-title separated"><span>02</span><h2>Refraction &amp; color</h2></div>
+            <div id="optical-refraction-controls"></div>
+            <div class="select-row"><label for="absorptionColor">Absorption color</label><input id="absorptionColor" type="color" value="#d5f3ff" /></div>
+            <div id="optical-color-controls"></div>
+            <p class="control-note">Transmission controls clarity. Thickness bends the view through the material and deepens its color. Shorter absorption distance gives a denser tint.</p>
+            <div class="section-title separated"><span>03</span><h2>Inside the volume</h2></div>
+            <div id="optical-volume-controls"></div>
+            <p class="control-note">Inclusions add trapped mineral flecks. Clouds and internal cracks reveal depth as you orbit. Surface roughness creates a frosted finish.</p>
+            <button id="reset-optical" class="reset full-reset">Reset optical preset</button>
+          </div>
+          <div class="section-title separated"><span id="noise-section-index">02</span><h2>Noise &amp; surface relief</h2></div>
+          <div id="noise-controls"></div>
+          <div class="section-title separated"><span id="channel-section-index">03</span><h2>Inspect channels</h2></div>
+          <div class="channel-tabs" id="channels" role="group" aria-label="Material channel"></div>
+          <p class="control-note">Channel previews help inspect the shader. Normal shows world-space normals; texture baking is a separate export step.</p>
+          </div>
+        </section>
+        <section id="panel-fracture" role="tabpanel" aria-labelledby="tab-fracture" hidden>
+          <details id="sound-settings" class="fracture-advanced">
+            <summary>Sound effects</summary>
+            <div class="fracture-advanced-content">
+              <div class="slider-control"><label class="range-label" for="sfx-volume"><span>Volume</span><output id="sfx-volume-value" for="sfx-volume">75%</output></label><input id="sfx-volume" type="range" min="0" max="1" step="0.01" value="0.75" /></div>
+              <div class="select-row"><label for="sfx-family">Sound material</label><select id="sfx-family"><option value="auto">Match asset</option><option value="rock">Rock</option><option value="concrete">Concrete</option><option value="glass">Glass</option><option value="wood">Wood</option></select></div>
+              <p id="sfx-status" class="control-note" role="status">Loading sound effects…</p>
+            </div>
+          </details>
+          <div id="fracture-controls"></div>
+        </section>
+        <section id="panel-ground" role="tabpanel" aria-labelledby="tab-ground" hidden>
+          <div class="section-title"><span>01</span><h2>Ground surface</h2><span class="count-badge">5 types</span></div>
+          <div class="ground-grid" id="grounds" role="group" aria-label="Ground surface"></div>
+          <p class="control-note" id="ground-description"></p>
+          <div class="section-title separated"><span>02</span><h2>Planar reflections</h2></div>
+          <div id="ground-controls"></div>
+          <p class="control-note">Wetness controls the surface response. Reflection strength controls the mirrored scene; zero skips the reflection pass.</p>
+          <div id="asphalt-controls-panel" hidden>
+            <div class="section-title separated"><span>03</span><h2>Asphalt finish</h2></div>
+            <div id="asphalt-finish-controls"></div>
+            <p class="control-note">Roughness softens reflections. Breakup adds variation between the road surface and wet patches.</p>
+            <div class="section-title separated"><span>04</span><h2>Surface normals &amp; ripples</h2></div>
+            <div id="asphalt-normal-controls"></div>
+            <p class="control-note">Procedural normals add grain and distort reflections. Ripples appear in wet patches; set their speed to zero to freeze them.</p>
+            <button id="reset-asphalt" class="reset full-reset">Reset asphalt detail</button>
+          </div>
+        </section>
+        <section id="panel-studio" role="tabpanel" aria-labelledby="tab-studio" hidden>
+          <div class="section-title"><span>01</span><h2>Lighting &amp; view</h2></div>
+          <div class="select-row"><label for="lighting">Lighting</label><select id="lighting"><option value="alpine">Alpine</option><option value="soft">Soft studio</option><option value="sunset">Warm sunset</option></select></div>
+          <label class="check-row"><span>Turntable</span><input id="rotate" type="checkbox" role="switch" /></label>
+          <label class="check-row"><span>Wireframe</span><input id="wireframe" type="checkbox" role="switch" /></label>
+          <div class="section-title separated"><span>02</span><h2>For your game</h2></div>
+          <p class="control-note">Use normal detail for pores, grain, and small cracks. Use geometry displacement for silhouette changes and close-up assets.</p>
+          <p class="control-note">A portable material usually needs base color, normal, roughness, and optional ambient occlusion. Keep rock metalness at zero.</p>
+          <p class="control-note">Recipes regenerate this procedural asset. Image export saves the viewport. Baked textures and GLB export are not included yet.</p>
+          <button id="reset" class="reset full-reset">Reset all settings</button>
+        </section>
+      </aside>
+      <main>
+        <div class="stage" id="stage">
+          <div class="asset-label"><div class="eyebrow">LIVE GENERATION <span class="live-dot"></span></div><h1 id="asset-title">Weathered boulder</h1><p id="asset-subtitle">Seed 18427 · Stone</p></div>
+          <div id="destruction-hud" hidden><span id="destruction-status">Tap an asset to fracture</span><button id="restore-asset">Reset destruction</button></div>
+          <div class="stats"><span id="triangles">0</span> triangles<span class="stats-divider">/</span><span id="generation-time">0</span> ms to generate<div id="surface-status">Studio · Planar reflections</div></div>
+          <div class="view-controls"><button id="view-single" class="active" aria-pressed="true">Single</button><button id="view-lineup" aria-pressed="false">Variations</button></div>
+          <button id="frame" aria-label="Reset camera">⌖</button>
+          <div class="stage-bottom"><span id="stage-hint">Drag to orbit <i>·</i> Scroll to zoom</span><span id="fps">60 FPS</span></div>
+        </div>
+        <div class="inspiration"><div><span class="eyebrow">WORLD PRESETS</span><p id="look-note">Start a new asset family.</p></div><div class="look-buttons" id="looks"></div></div>
+        <footer><span>Seeded geometry + procedural shading</span><span>18 shapes · 10 materials · 5 grounds</span></footer>
+      </main>
+    </div>
+    <dialog id="help-dialog" aria-labelledby="help-title">
+      <form method="dialog"><button aria-label="Close help">×</button></form>
+      <span class="eyebrow">ROCK LAB</span><h2 id="help-title">Make something solid.</h2>
+      <p>Choose a shape, tune its material, and set the ground. Hover, focus, or tap a parameter label for a short explanation.</p>
+      <dl class="help-controls"><div><dt>Orbit</dt><dd>Drag the scene</dd></div><div><dt>Zoom</dt><dd>Scroll or pinch</dd></div><div><dt>Compare seeds</dt><dd>View → Variations</dd></div><div><dt>Break an asset</dt><dd>Enable Fracture, then tap a piece</dd></div><div><dt>Save your setup</dt><dd>File → Save recipe</dd></div></dl>
+      <p>Recipes regenerate editable assets. Save image exports the viewport as a PNG. Mesh export and texture baking are not included yet.</p>
+    </dialog>
+    <div id="toast" role="status"></div>
+    <input id="recipe-file" type="file" accept=".json,application/json" hidden />
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

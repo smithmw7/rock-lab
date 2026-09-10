@@ -1,0 +1,58 @@
+.parameter-help-label {
+  cursor: help;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: #8799a480;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  border-radius: 2px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.parameter-help-label:hover,
+.parameter-help-label.parameter-help-open {
+  color: #edf4f8;
+  text-decoration-color: #c4d5df;
+}
+
+.parameter-help-label:focus-visible {
+  outline: 2px solid #b7d3e3;
+  outline-offset: 4px;
+}
+
+.parameter-tooltip {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: max-content;
+  padding: 12px 14px;
+  border: 1px solid #647784;
+  border-radius: 8px;
+  background: #111b23;
+  color: #e2ecf2;
+  box-shadow: 0 8px 28px #0008;
+  font: 400 12px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+}
+
+.parameter-tooltip[hidden] { display: none !important; }
+
+@media (pointer: coarse) {
+  .parameter-help-label {
+    display: inline-block;
+    padding-block: 5px;
+    margin-block: -5px;
+    line-height: 1.5;
+  }
+  .parameter-tooltip { font-size: 13px; }
+}
+
+@media (forced-colors: active) {
+  .parameter-tooltip { background: Canvas; color: CanvasText; border-color: CanvasText; }
+  .parameter-help-label { text-decoration-color: LinkText; }
+  .parameter-help-label:focus-visible { outline-color: Highlight; }
+}

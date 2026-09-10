@@ -1,0 +1,12 @@
+node_modules/
+dist/
+artifacts/
+output/
+local-assets/
+public/audio/private/
+public/reference.png
+progress.md
+.env
+.env.*
+!.env.example
+.DS_Store

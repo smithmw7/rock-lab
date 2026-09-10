@@ -1,0 +1,16 @@
+{
+  "generator": "procedural-rock-lab",
+  "version": 1,
+  "options": {
+    "seed": 72841,
+    "shape": "crystals",
+    "facets": 0.3,
+    "roughness": 0.22,
+    "bevel": 0.24,
+    "surface": "ice",
+    "snow": 0,
+    "detail": 0.7,
+    "contrast": 0.7,
+    "lighting": "alpine"
+  }
+}

@@ -1,0 +1,26 @@
+.app-header{position:relative;z-index:30;justify-content:flex-start;gap:28px;touch-action:manipulation}
+.app-header .brand{flex-shrink:0}
+.app-menubar{display:flex;align-items:center;gap:3px;margin-right:auto;min-width:0}
+.app-menu-trigger{border-color:transparent;background:transparent;padding:9px 12px;color:#c8d1d7;font-size:12px;font-weight:500}
+.app-menu-trigger:hover,.app-menu-trigger[aria-expanded=true]{background:#30383d;border-color:#455159;color:#f1f5f7}
+.app-menu-panel{position:fixed;z-index:1000;width:236px;max-width:calc(100vw - 16px);overflow-y:auto;padding:6px;background:#252c31;border:1px solid #48535b;border-radius:8px;box-shadow:0 12px 36px #080c1070,0 2px 8px #0003}
+.app-menu-panel[hidden]{display:none}
+.app-menu-panel :is(button,a){display:flex;align-items:center;justify-content:space-between;gap:24px;width:100%;padding:10px 11px;min-height:37px;border:0;border-radius:4px;background:transparent;color:#d8e0e5;font:inherit;font-size:12px;font-weight:450;line-height:1.3;text-align:left;text-decoration:none;white-space:nowrap;cursor:pointer}
+.app-menu-panel :is(button,a):is(:hover,:focus){outline:none;background:#3c4b55;color:#fff}
+.app-menu-panel [role=separator]{height:1px;margin:5px 6px;background:#414a51}
+.menu-symbol{color:#98aab6;font-size:13px}
+.menu-check{color:#d5e6ef;font-size:12px;visibility:hidden}
+[aria-checked=true]>.menu-check{visibility:visible}
+.app-header .header-actions{margin-left:auto}
+#help-dialog{width:min(440px,calc(100vw - 32px));padding:30px;overflow:auto;border-radius:10px}
+#help-dialog h2{margin:11px 0 18px;font-size:24px;letter-spacing:-.5px;color:#edf2f5}
+#help-dialog p{font-size:12px;line-height:1.75;color:#bdcbd4}
+#help-dialog form{right:16px;top:15px}
+#help-dialog form button{width:28px;height:28px;font-size:19px}
+.help-controls{margin:22px 0;border-top:1px solid #3b4851}
+.help-controls>div{display:flex;gap:16px;justify-content:space-between;padding:11px 0;border-bottom:1px solid #3b4851;font-size:11px;line-height:1.5}
+.help-controls dt{flex-shrink:0;color:#e0e9ed;font-weight:550}
+.help-controls dd{margin:0;color:#acbdc9;text-align:right}
+@media(max-width:1150px){.app-header{gap:23px}}
+@media(max-width:720px){.app-header{gap:18px;padding:0 17px}.app-menu-trigger{padding:10px 9px;font-size:12px}.app-menu-panel :is(button,a){min-height:42px;font-size:13px}.app-header #sound-toggle{width:34px;height:34px;padding:0}.app-header #sound-toggle .sound-label{display:none}}
+@media(max-width:440px){.app-header{gap:15px}.app-menubar{gap:0}.app-menu-trigger{padding:10px 8px}.app-header .header-actions{gap:0}#help-dialog{padding:26px 21px}.help-controls>div{font-size:11px}}
