@@ -546,6 +546,7 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
       const rowX = 2 * (q.x * q.y + q.w * q.z), rowY = 1 - 2 * (q.x * q.x + q.z * q.z), rowZ = 2 * (q.y * q.z - q.w * q.x);
       let minimumY = Infinity;
       for (let i = 0; i < record.hullVertices.length; i += 3) minimumY = Math.min(minimumY, p.y + rowX * record.hullVertices[i] + rowY * record.hullVertices[i + 1] + rowZ * record.hullVertices[i + 2]);
+      node.minimumY = minimumY;
       if (minimumY <= 0.006) node.anchors.add(floor.handle);
       world.contactPairsWith(record.collider, other => {
         const neighbor = colliderRecords.get(other.handle);
@@ -597,9 +598,16 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
       if (!deepest) continue;
       const correction = Math.min(0.012, (-deepest.distance - 0.004) * 0.35);
       const p = body.translation(), n = deepest.normal1;
-      body.setTranslation({x:p.x-n.x*correction,y:p.y-n.y*correction,z:p.z-n.z*correction}, false);
+      const deltaY = -n.y * correction;
+      const floorLimited = deltaY < 0 && node.minimumY + deltaY < -0.002;
+      const boundedY = floorLimited ? Math.min(0.012, -node.minimumY - 0.002) : deltaY;
+      body.setTranslation({x:p.x-n.x*correction,y:p.y+boundedY,z:p.z-n.z*correction}, false);
       const inward = velocity.x*n.x+velocity.y*n.y+velocity.z*n.z;
-      if (inward > 0) body.setLinvel({x:velocity.x-n.x*inward,y:velocity.y-n.y*inward,z:velocity.z-n.z*inward},false);
+      if (inward > 0 || (floorLimited && velocity.y < 0)) {
+        const projected = Math.max(0, inward);
+        const vertical = velocity.y - n.y * projected;
+        body.setLinvel({x:velocity.x-n.x*projected,y:floorLimited?Math.max(0,vertical):vertical,z:velocity.z-n.z*projected},false);
+      }
     }
     const qualified = new Set();
     for (const record of dynamic) {

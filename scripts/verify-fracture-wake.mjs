@@ -68,6 +68,81 @@ try {
     } finally { context.dispose(); }
   });
 
+  await check('An overhead contact cannot push a grounded shard through the floor', async () => {
+    const context = await setup([
+      { size: [.25, .06, .18], position: [0, 3, 0] },
+      { size: [1, 1, 1], position: [0, .525, 0] },
+    ]);
+    const nativeTranslation = RAPIER.RigidBody.prototype.setTranslation;
+    try {
+      assert(await context.tap(3));
+      const fragments = context.bodies(); assert.equal(fragments.length, 2);
+      const meshIdentities = () => context.lab.getMeshes().map(mesh => [mesh.uuid, mesh.geometry.uuid]);
+      const originalIdentities = meshIdentities();
+      fragments.forEach((body, index) => {
+        body.setGravityScale(0, true);
+        body.setTranslation({ x: index ? 5 : 0, y: 3, z: 0 }, true);
+        body.setLinvel({ x: 0, y: 0, z: 0 }, true); body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      });
+      context.world.propagateModifiedBodyPositionsToColliders();
+      simulate(context.lab, .4);
+      const shard = fragments[0], collider = shard.collider(0);
+      const originalVertices = Array.from(collider.shape.vertices);
+      let ceiling;
+      context.world.forEachRigidBody(body => { if (body.userData?.generation === 0) ceiling = body.collider(0); });
+      assert.ok(ceiling);
+      assert.ok(!resting(shard), 'The shard must mature in free flight before the controlled floor/ceiling conflict');
+      const minimumY = () => {
+        const p = shard.translation(), q = shard.rotation(), vertices = collider.shape.vertices;
+        let minimum = Infinity;
+        for (let i = 0; i < vertices.length; i += 3) {
+          const point = new THREE.Vector3(vertices[i], vertices[i + 1], vertices[i + 2]).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+          minimum = Math.min(minimum, p.y + point.y);
+        }
+        return minimum;
+      };
+      // A real fixed ceiling presses on a previously separate chip. Unlike an
+      // authored initial overlap, this new encounter must use normal physics.
+      // Its valid upward contact normal must not push the chip through ground.
+      const p = shard.translation();
+      shard.setTranslation({ x: p.x, y: p.y - minimumY(), z: p.z }, true);
+      context.world.propagateModifiedBodyPositionsToColliders();
+      const initialCeilingContact = collider.contactCollider(ceiling, 0);
+      assert.ok(initialCeilingContact?.distance < -.02 && initialCeilingContact.normal1.y > .9);
+      const corrections = [];
+      // Rapier moves bodies internally. Public setter calls identify controller
+      // depenetration separately from the solver's physically constrained pose.
+      RAPIER.RigidBody.prototype.setTranslation = function (next, ...args) {
+        if (this.handle !== shard.handle) return nativeTranslation.call(this, next, ...args);
+        const before = this.translation(), minimumBefore = minimumY();
+        const result = nativeTranslation.call(this, next, ...args);
+        corrections.push({ dx: next.x - before.x, dy: next.y - before.y, dz: next.z - before.z, minimumBefore, minimumAfter: minimumY() });
+        return result;
+      };
+      simulate(context.lab, 2);
+      assert.ok(corrections.length > 0, 'The real overhead overlap must exercise controller depenetration');
+      for (const correction of corrections) {
+        assert.ok(correction.minimumAfter >= Math.min(correction.minimumBefore, -.002) - 1e-6,
+          'Depenetration from an overhead contact must not deepen actual floor penetration beyond its 2 mm tolerance');
+      }
+      assert.ok(resting(shard), 'The constrained chip must finish settling');
+      assert.ok(minimumY() >= -.00201, 'The resting chip must retain the floor surface');
+      assert.deepEqual(meshIdentities(), originalIdentities, 'Contact correction must preserve the original visible meshes');
+      assert.deepEqual(Array.from(collider.shape.vertices), originalVertices, 'Contact correction must preserve the original hull');
+      const settledPose = pose(shard); simulate(context.lab, 1);
+      assert.deepEqual(pose(shard), settledPose, 'The corrected chip must stay exactly still after settling');
+      return {
+        initialCeilingOverlap: initialCeilingContact.distance, ceilingNormal: initialCeilingContact.normal1,
+        correctionCount: corrections.length, firstCorrections: corrections.slice(0, 3),
+        minimumCorrectedHullY: Math.min(...corrections.map(correction => correction.minimumAfter)),
+        finalMinimumY: minimumY(), resting: true, geometryPreserved: true,
+      };
+    } finally {
+      RAPIER.RigidBody.prototype.setTranslation = nativeTranslation;
+      context.dispose();
+    }
+  });
+
   await check('Nearby long shards do not wake a separated pile', async () => {
     const context = await setup([
       { size: [1.2, 1, 1.2], position: [0, .5, 0] },
