@@ -51,7 +51,7 @@ export function createScenePanel({
   });
 
   tools.forEach(button => listen(button, 'click', () => onSettings({ tool: button.dataset.sceneTool })));
-  for (const action of ['add', 'duplicate', 'delete', 'frame', 'frame-all']) {
+  for (const action of ['add', 'duplicate', 'delete', 'frame', 'frame-all', 'undo', 'redo']) {
     listen(byId(`scene-${action}`), 'click', () => onAction(action));
   }
   for (const key of ['snap', 'grid']) {
@@ -154,6 +154,10 @@ export function createScenePanel({
     current = { ...snapshot, objects: snapshot.objects ?? [], settings: snapshot.settings ?? {} };
     const active = Boolean(current.active);
     const selection = current.selection;
+    const history = current.history ?? {};
+    byId('scene-undo').disabled = !active || !history.canUndo || current.dragging;
+    byId('scene-redo').disabled = !active || !history.canRedo || current.dragging;
+    byId('scene-history-status').textContent = history.canUndo ? `Undo: ${history.undoLabel} · ⌘/Ctrl Z` : 'No edits to undo · ⌘/Ctrl Z';
     const changedSelection = previousSelection !== current.selectedId;
     previousSelection = current.selectedId;
     modeButtons[0].setAttribute('aria-pressed', String(!active));

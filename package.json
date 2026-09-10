@@ -28,7 +28,11 @@
     "qa:turntable": "node scripts/qa-turntable.mjs",
     "qa:scene": "node scripts/qa-scene.mjs",
     "qa:scene-gallery": "node scripts/qa-scene-gallery.mjs",
-    "render:scene-gallery": "node scripts/render-scene-gallery.mjs"
+    "render:scene-gallery": "node scripts/render-scene-gallery.mjs",
+    "verify:studio-presets": "node scripts/verify-studio-presets.mjs",
+    "qa:studio-expansion": "node scripts/qa-studio-expansion.mjs",
+    "verify:scene-history": "node scripts/verify-scene-history.mjs",
+    "qa:scene-history": "node scripts/qa-scene-history.mjs"
   },
   "dependencies": {
     "@dgreenheck/three-pinata": "2.0.1",

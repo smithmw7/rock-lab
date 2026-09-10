@@ -117,10 +117,16 @@ try {
   await turntableLabel.tap(); assert.equal(await visibleTip(mobile).count(), 0);
   await mobile.locator('#rotate').tap(); assert.equal(await mobile.locator('#rotate').isChecked(), !before, 'Actual switch remains directly operable');
   await mobile.locator('#tab-fracture').tap();
+  const physicsBeforeHelp = await mobile.locator('#fr-enabled').isChecked();
   await mobile.locator('label[for="fr-enabled"] .parameter-help-label').tap(); await ensureTip(mobile, /Enables tapping/);
-  assert.equal(await mobile.locator('#fr-enabled').isChecked(), false, 'Help must not enable physics');
-  assert.equal(await mobile.evaluate(() => window.rockLab.fracture), null, 'Help must not initialize the physics controller');
+  assert.equal(await mobile.locator('#fr-enabled').isChecked(), physicsBeforeHelp, 'Help must preserve the current physics setting');
   await mobile.locator('#tab-shape').tap(); assert.equal(await visibleTip(mobile).count(), 0);
+  const offUrl = new URL(report.url); offUrl.searchParams.set('fracture', '0');
+  await mobile.goto(offUrl.href); await mobile.waitForFunction(() => window.rockLab?.ready);
+  await mobile.locator('#tab-fracture').tap();
+  await mobile.locator('label[for="fr-enabled"] .parameter-help-label').tap(); await ensureTip(mobile, /Enables tapping/);
+  assert.equal(await mobile.locator('#fr-enabled').isChecked(), false, 'Help must not enable disabled physics');
+  assert.equal(await mobile.evaluate(() => window.rockLab.fracture), null, 'Help must not initialize a disabled physics controller');
   report.checks.touchDoesNotMutateOrInitializePhysics = true;
   assert.deepEqual(errors, []);
   console.log(JSON.stringify(report, null, 2));

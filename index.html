@@ -75,6 +75,11 @@
         <section id="panel-scene" role="tabpanel" aria-labelledby="tab-scene" hidden>
           <div class="section-title"><span>01</span><h2>Scene objects</h2><span class="count-badge" id="scene-object-count">0 objects</span></div>
           <p class="control-note scene-mode-note">Build a scene from your procedural objects. Choose a shape to add it, then select an object to edit its shape, material, and transform. Return to Object to test destruction.</p>
+          <div class="scene-history-actions" role="group" aria-label="Scene edit history">
+            <button id="scene-undo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4 3 9l5 5M3 9h11a6 6 0 0 1 0 12h-3"/></svg>Undo</button>
+            <button id="scene-redo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 4 5 5-5 5m5-5H10a6 6 0 0 0 0 12h3"/></svg>Redo</button>
+          </div>
+          <p id="scene-history-status" role="status" aria-live="polite">No edits to undo · ⌘/Ctrl Z</p>
           <div id="scene-objects" class="scene-object-list" role="group" aria-label="Scene objects"></div>
           <p id="scene-empty" class="scene-empty">Your scene is empty. Use Add current object or choose an object in Shape.</p>
           <p id="scene-status" class="scene-status" role="status" aria-live="polite"></p>
@@ -216,7 +221,7 @@
           <div id="fracture-controls"></div>
         </section>
         <section id="panel-ground" role="tabpanel" aria-labelledby="tab-ground" hidden>
-          <div class="section-title"><span>01</span><h2>Ground surface</h2><span class="count-badge">5 types</span></div>
+          <div class="section-title"><span>01</span><h2>Ground surface</h2><span class="count-badge" id="ground-count">8 types</span></div>
           <div class="ground-grid" id="grounds" role="group" aria-label="Ground surface"></div>
           <p class="control-note" id="ground-description"></p>
           <div class="section-title separated"><span>02</span><h2>Planar reflections</h2></div>
@@ -234,7 +239,7 @@
         </section>
         <section id="panel-studio" role="tabpanel" aria-labelledby="tab-studio" hidden>
           <div class="section-title"><span>01</span><h2>Lighting &amp; view</h2></div>
-          <div class="select-row"><label for="lighting">Lighting</label><select id="lighting"><option value="alpine">Alpine</option><option value="soft">Soft studio</option><option value="sunset">Warm sunset</option></select></div>
+          <div class="select-row"><label for="lighting">Lighting</label><select id="lighting"></select></div>
           <label class="check-row"><span>Turntable</span><input id="rotate" type="checkbox" role="switch" /></label>
           <label class="check-row"><span>Wireframe</span><input id="wireframe" type="checkbox" role="switch" /></label>
           <div class="section-title separated"><span>02</span><h2>For your game</h2></div>
@@ -273,7 +278,7 @@
           <button id="frame" aria-label="Reset camera">⌖</button>
           <div class="stage-bottom"><span id="stage-hint">Drag to orbit <i>·</i> Scroll to zoom</span><span id="fps">60 FPS</span></div>
         </div>
-        <div class="inspiration"><div><span class="eyebrow">WORLD PRESETS</span><p id="look-note">Start a new asset family.</p></div><div class="look-buttons" id="looks"></div></div>
+        <div class="inspiration"><div class="preset-heading"><span class="eyebrow">WORLD PRESETS <span class="preset-count">56</span></span><p id="look-note">Start a new asset family.</p><small>Tap again for a new variation · Scroll to explore</small></div><div class="look-buttons" id="looks" role="group" aria-label="World presets"><button id="random-look"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3c4 0 6 10 10 10h3m-3-3 3 3-3 3M4 17h3c1.5 0 3-1.5 4-3m2-4c1-1.5 2.5-3 4-3h3m-3-3 3 3-3 3"/></svg><span><strong>Randomize</strong><small>Surprise me</small></span></button></div></div>
         <footer><span>Seeded geometry + procedural shading</span><span id="asset-counts">Procedural asset library</span></footer>
       </main>
     </div>
@@ -290,7 +295,7 @@
       <form method="dialog"><button aria-label="Close help">×</button></form>
       <span class="eyebrow">ROCK LAB</span><h2 id="help-title">Make something solid.</h2>
       <p>Choose a shape, tune its material, and set the ground. Hover, focus, or tap a parameter label for a short explanation.</p>
-      <dl class="help-controls"><div><dt>Orbit</dt><dd>Drag the scene</dd></div><div><dt>Zoom</dt><dd>Scroll or pinch</dd></div><div><dt>Compare seeds</dt><dd>View → Variations</dd></div><div><dt>Break an asset</dt><dd>Enable Fracture, then tap a piece</dd></div><div><dt>Save your setup</dt><dd>File → Save recipe</dd></div></dl>
+      <dl class="help-controls"><div><dt>Orbit</dt><dd>Drag the scene</dd></div><div><dt>Zoom</dt><dd>Scroll or pinch</dd></div><div><dt>Compare seeds</dt><dd>View → Variations</dd></div><div><dt>Break an asset</dt><dd>Tap a piece in Object mode</dd></div><div><dt>Undo a scene edit</dt><dd>Ctrl / Cmd + Z</dd></div><div><dt>Redo a scene edit</dt><dd>Shift + Ctrl / Cmd + Z</dd></div><div><dt>Save your setup</dt><dd>File → Save recipe</dd></div></dl>
       <p>Recipes regenerate editable assets. Save image exports the viewport as a PNG. Mesh export and texture baking are not included yet.</p>
     </dialog>
     <div id="toast" role="status"></div>

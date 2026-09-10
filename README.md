@@ -15,7 +15,7 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 
 | | What's inside |
 | :--- | :--- |
-| **Scene builder** | Multiple independent instances, selection, move/rotate/scale handles, snapping, and shaded/wireframe/collider/normal views |
+| **Scene builder** | Multiple independent instances, selection, move/rotate/scale handles, Undo/Redo, snapping, and shaded/wireframe/collider/normal views |
 | **8 scene examples** | Editable landscapes, ruins, workshops, and courtyards with rendered previews in the Gallery |
 | **79 objects** | Rocks, terrain, modular architecture, furniture, tools, metal stock, pottery, and paths in a searchable scrolling library |
 | **Terrain kit** | 16 cliffs, rock pillars, flat platforms, and stone ramps using the original material system |
@@ -23,7 +23,9 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 | **25 materials** | Stone and ice, glass and crystal, eight metals, three woods, and four ceramic finishes |
 | **Composite tools** | Four hammer heads, three knife blades, and a hatchet with separate handle, working end, and fitting materials |
 | **Spline lathe** | Drag six profile points to reshape bowls, vases, jars, urns, planters, saucers, goblets, and candlesticks |
-| **5 grounds** | Studio, wet asphalt, concrete, sand, and wooden planks, with live planar reflections |
+| **8 grounds** | Studio, wet asphalt, sand, slate flagstone, warm travertine, ivory terrazzo, basalt hex tiles, and packed earth with planar reflections |
+| **56 world presets** | Scroll through authored looks, start with Randomize, or tap a preset again for a new seed |
+| **8 lighting setups** | Alpine, soft studio, sunset, daylight, golden hour, moonlight, overcast, and dramatic |
 | **Surface detail** | Seeded noise, normal relief, grain, cracks, contrast, snow, and geometry displacement |
 | **Optical effects** | Transmission, refraction, dispersion, absorption, cloudy volumes, and inclusions |
 | **Tap destruction** | Voronoi, random planes, and slicing through [three-pinata](https://github.com/dgreenheck/three-pinata), with Rapier debris physics |
@@ -35,7 +37,7 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 1. Open **Gallery** beside the Object / Scene switch to start with a complete editable scene, or browse the scrolling **Shape** library to create one object. Use **All**, a category, or search, then change the seed to generate variations.
 2. Open **Material** to adjust the finish. **Outer / Inner** selects the original skin or exposed fracture faces.
 3. Try **Ground → Wet asphalt**, then adjust roughness, normal strength, and puddle ripples.
-4. Enable **Fracture → Tap destruction** and click the asset. Drag to orbit; scroll or pinch to zoom.
+4. Click the asset to break it. **Fracture → Tap destruction** is enabled by default. Drag to orbit; scroll or pinch to zoom.
 5. Switch **Object → Scene** at the top center to assemble multiple objects. Choose shapes to add them, then use the transform toolbar or numeric inspector.
 6. Use **File → Save recipe / Save scene** to keep your settings, or **File → Save image** for a PNG.
 
@@ -43,7 +45,7 @@ Parameter labels have explanations on hover, keyboard focus, and touch. Action b
 
 ## Start from a scene
 
-The **Gallery** is available in both Object and Scene modes. Choose a thumbnail to load its arrangement with independent objects, materials, lighting, and ground. Examples open with the Move tool active: click an object to select it, then drag a gizmo axis. Use Rotate, Scale, or the numeric Scene inspector for further edits. Geometry parameter controls and Material edit the selected object; clicking a shape card adds a new object to the scene.
+The **Gallery** is available in both Object and Scene modes. Choose a thumbnail to load its arrangement with independent objects, materials, lighting, and ground. Examples open with the Move tool active: click an object to select it, then drag a gizmo axis. Use **Scene → Undo / Redo** or Ctrl/Cmd + Z and Shift + Ctrl/Cmd + Z to step through your last 50 object edits. Use Rotate, Scale, or the numeric Scene inspector for further edits. Geometry parameter controls and Material edit the selected object; clicking a shape card adds a new object to the scene.
 
 | Example | Starting point |
 | :--- | :--- |
@@ -69,7 +71,7 @@ npm ci
 npm run dev -- --port 5207
 ```
 
-Open [localhost:5207](http://127.0.0.1:5207/). Choose another free port if it is in use. A recent browser with WebGL2 is required. Fracture physics loads when you enable destruction.
+Open [localhost:5207](http://127.0.0.1:5207/). Choose another free port if it is in use. A recent browser with WebGL2 is required. Tap destruction starts enabled. Add `?fracture=0` to the URL to start without loading physics.
 
 ```sh
 npm run verify                 # Seeded geometry and material checks
@@ -80,7 +82,11 @@ npm run verify:paths           # Fitted paving, spacing, world scale, and budget
 npm run verify:fracture        # Actual fracture geometry and physics
 npm run verify:scene           # Scene ownership, transforms, convex hulls, and budgets
 npm run verify:scene-presets   # Validate all eight editable example scenes
+npm run verify:scene-history   # Undo/Redo transactions, rollback, and resource ownership
+npm run verify:studio-presets  # Validate all 56 authored world presets
 npm run qa:scene               # Real browser scene editing and recipe checks
+npm run qa:scene-history       # Pointer/keyboard history and exact restoration
+npm run qa:studio-expansion    # Presets, floors, lighting, and touch controls
 npm run qa:scene-gallery       # Gallery loading, restore, and recipe round trips
 npm run render:scene-gallery   # Regenerate the example thumbnail images
 npm run build                 # Portable static app in dist/
@@ -92,7 +98,7 @@ The GitHub Actions workflow builds and deploys `main` to Pages. Relative asset p
 
 ## Export and reuse
 
-**Available today:** recipe JSON and viewport PNG. Recipes restore the intact source with geometry, independent materials, lighting, ground, and fracture settings. Recipes now use version 6. Scene files preserve independent object recipes, names, transforms, selection, snapping, display settings, and the scene environment, alongside the original Object draft. Scenes started in the Gallery also retain their preset identity when saved and imported, including your edits. The temporary gallery backup, moving debris, and camera position are not serialized. Versions 1–5 still load into Object mode.
+**Available today:** recipe JSON and viewport PNG. Recipes restore the intact source with geometry, independent materials, lighting, ground, and fracture settings. Recipes now use version 6. Scene files preserve independent object recipes, names, transforms, selection, snapping, display settings, and the scene environment, alongside the original Object draft. Scenes started in the Gallery also retain their preset identity when saved and imported, including your edits. Undo history, the temporary gallery backup, moving debris, and camera position are not serialized. Versions 1–5 still load into Object mode.
 
 **Not yet implemented:** GLB export, UV atlasing, and baked PBR texture export. Normal/height/roughness views are shader diagnostics. They are not downloadable game texture maps.
 

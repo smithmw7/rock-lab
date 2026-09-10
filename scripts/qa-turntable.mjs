@@ -70,6 +70,8 @@ try{
   for(const [id,value] of [['fr-fragmentCount',2],['fr-gravity',0],['fr-impulse',0]])await page.locator(`#${id}`).evaluate((input,value)=>{input.value=String(value);input.dispatchEvent(new Event('input',{bubbles:true}));},value);
 
   // Order one: start the ordinary asset turntable, then enable destruction.
+  // Destruction now defaults on, so explicitly prepare the ordinary-asset case.
+  await fracture(false);
   await checkbox(true);const assetBefore=await snapshot();await advance(900);const assetAfter=await snapshot();
   assert.equal(assetAfter.stats.turntable,true);assert.equal(assetAfter.stats.turntableMode,'asset');assert.ok(Math.abs(assetAfter.sourceAngle-assetBefore.sourceAngle)>.1);assert.ok(distance(assetAfter.camera,assetBefore.camera)<1e-6);await menuAgreement(true);
   await fracture(true);const enabled=await snapshot();assert.equal(enabled.checked,true);assert.equal(enabled.stats.turntable,true);assert.equal(enabled.sourceVisible,false);

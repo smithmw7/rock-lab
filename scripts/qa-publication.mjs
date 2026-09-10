@@ -11,7 +11,7 @@ const remoteUrl = process.env.ROCK_LAB_URL;
 const mode = remoteUrl ? 'remote' : 'local';
 const report = { mode, checks: {}, responses: [], requestFailures: [], workers: [], errors: [], forbiddenRequests: [] };
 await fs.mkdir(output, { recursive: true });
-let server, browser;
+let server, browser, page;
 
 async function serveBuild() {
   const directory = path.join(project, 'dist');
@@ -39,7 +39,7 @@ try {
   const prefix = new URL(report.url).pathname.replace(/\/?$/, '/');
   browser = await chromium.launch({ channel: 'chrome', headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, acceptDownloads: true });
-  const page = await context.newPage();
+  page = await context.newPage();
   page.setDefaultTimeout(60000);
   context.on('response', response => report.responses.push({ url: response.url(), status: response.status(), type: response.request().resourceType() }));
   context.on('requestfailed', request => report.requestFailures.push({ url: request.url(), error: request.failure()?.errorText }));
@@ -58,6 +58,11 @@ try {
   assert.equal(initial.audio.library, 'public');
   assert.equal(initial.audio.expected, 16); assert.equal(initial.audio.failed, 0);
   assert.equal(initial.audio.playCount, 0);
+  assert.equal(initial.stats.fracture.enabled, true, 'The published app starts with tap destruction enabled');
+  assert.equal(await page.locator('#looks [data-look]').count(), 56);
+  assert.equal(await page.locator('#looks button').first().getAttribute('id'), 'random-look');
+  assert.equal(await page.locator('#grounds [data-ground]').count(), 8);
+  assert.equal(await page.locator('#lighting option').count(), 8);
   assert.equal(await page.locator('#reference, #reference-dialog, button[title]').count(), 0);
   report.checks.publicBuildReady = { passed: true, library: initial.audio.library, decoded: initial.audio.loaded, shape: initial.shape, geometries: initial.stats.geometries };
   const screenshot = path.join(output, `${mode}-studio.png`);
@@ -73,7 +78,8 @@ try {
   await page.locator('#fr-method').selectOption('simple');
   await page.locator('#fr-fragmentCount').evaluate(element => { element.value = '6'; element.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.locator('#fr-enabled').check();
-  await page.waitForFunction(() => window.rockLab.fracture?.getStats().enabled && window.rockLab.audio.getState().contextState === 'running');
+  await page.waitForFunction(() => window.rockLab.fracture?.getStats().enabled);
+  // With default-on destruction, the first viewport gesture unlocks audio.
   const point = await page.evaluate(() => {
     const lab = window.rockLab, mesh = lab.fracture.getMeshes()[0];
     mesh.updateWorldMatrix(true, false); mesh.geometry.computeBoundingSphere();
@@ -82,8 +88,9 @@ try {
     return { x: rect.left + (center.x + 1) * rect.width / 2, y: rect.top + (1 - center.y) * rect.height / 2 };
   });
   await page.mouse.click(point.x, point.y);
-  await page.waitForFunction(() => window.rockLab.fracture.getStats().fragments > 0 && !window.rockLab.fracture.getStats().busy && window.rockLab.audio.getState().eventCounts.break > 0);
+  await page.waitForFunction(() => window.rockLab.fracture.getStats().fragments > 0 && !window.rockLab.fracture.getStats().busy && window.rockLab.audio.getState().eventCounts.break > 0, null, { timeout: 20000 });
   const broken = await page.evaluate(() => ({ fracture: window.rockLab.fracture.getStats(), audio: window.rockLab.audio.getState() }));
+  assert.equal(broken.audio.contextState, 'running');
   assert.equal(broken.audio.library, 'public');
   assert.ok(broken.audio.lastEvents.some(event => event.type === 'break' && event.family === 'rock'));
   report.checks.productionTap = { passed: true, fragments: broken.fracture.fragments, worker: broken.fracture.worker, breakEvent: broken.audio.lastEvents.find(event => event.type === 'break') };
@@ -123,6 +130,32 @@ try {
   assert.deepEqual(await page.evaluate(() => window.rockLab.recipe()), recipe);
   report.checks.productionGallery = { passed: true, thumbnails: images, loaded: 'alpine-crossing', exactObjectRestore: true };
 
+  await page.locator('#mode-scene').click();
+  const sceneBeforeAdd = await page.evaluate(() => window.rockLab.sceneEditor.serialize());
+  await page.locator('#scene-add').click();
+  const sceneAfterAdd = await page.evaluate(() => window.rockLab.sceneEditor.serialize());
+  assert.equal(sceneAfterAdd.objects.length, sceneBeforeAdd.objects.length + 1);
+  await page.locator('#scene-undo').click();
+  assert.deepEqual(await page.evaluate(() => window.rockLab.sceneEditor.serialize()), sceneBeforeAdd);
+  await page.locator('#scene-redo').click();
+  assert.deepEqual(await page.evaluate(() => window.rockLab.sceneEditor.serialize()), sceneAfterAdd);
+  await page.locator('#scene-position-y').fill('1.25');
+  await page.locator('#scene-position-y').press('Enter');
+  assert.equal(await page.evaluate(() => window.rockLab.sceneEditor.getSnapshot().selection.position[1]), 1.25);
+  await page.locator('[data-scene-tool="select"]').focus();
+  await page.keyboard.press('Control+z');
+  assert.deepEqual(await page.evaluate(() => window.rockLab.sceneEditor.serialize()), sceneAfterAdd);
+  await page.screenshot({ path: path.join(output, `${mode}-scene-undo.png`) });
+  report.checks.productionSceneUndo = { passed: true, exactAddUndoRedo: true, numericTransformKeyboardUndo: true };
+  await page.locator('#mode-object').click();
+  await page.locator('#looks [data-look="alpine"]').click();
+  const lookBefore = await page.evaluate(() => ({ ...window.rockLab.state }));
+  await page.locator('#looks [data-look="alpine"]').click();
+  const lookAfter = await page.evaluate(() => ({ ...window.rockLab.state }));
+  assert.notEqual(lookAfter.seed, lookBefore.seed);
+  delete lookAfter.seed; delete lookBefore.seed; assert.deepEqual(lookAfter, lookBefore);
+  report.checks.productionStudioExpansion = { passed: true, presets: 56, grounds: 8, lighting: 8, repeatPresetChangesOnlySeed: true };
+
   const assets = report.responses.filter(response => ['script', 'stylesheet'].includes(response.type) || /\.(?:js|css|wav|wasm|webp)(?:\?|$)/i.test(response.url));
   assert.ok(assets.some(asset => asset.url.includes('/assets/index-') && asset.url.endsWith('.js')));
   assert.ok(assets.some(asset => asset.url.includes('/assets/index-') && asset.url.endsWith('.css')));
@@ -141,7 +174,10 @@ try {
   report.checks.assetPaths = { passed: true, prefix, assetRequests: assets.length, publicWavs: wavs.size, workerUrls: report.workers, allStatuses: 200, forbiddenRequests: 0 };
   report.passed = true;
 } catch (error) {
-  report.passed = false; report.failure = error.stack; throw error;
+  report.passed = false; report.failure = error.stack;
+  report.failureState = await page?.evaluate(() => window.render_game_to_text?.()).catch(() => null);
+  await page?.screenshot({ path: path.join(output, `${mode}-failure.png`) }).catch(() => {});
+  throw error;
 } finally {
   await browser?.close();
   if (server) await new Promise(resolve => server.close(resolve));

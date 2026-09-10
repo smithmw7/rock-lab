@@ -1,3 +1,5 @@
+import { GROUND_PRESETS } from './ground-catalog.js';
+import { createWorldPresets } from './world-presets.js';
 import { WORKSHOP_SURFACES } from './workshop-materials.js';
 
 import { WORKSHOP_GROUPS, WORKSHOP_CATALOG } from './workshop-geometry.js';
@@ -79,20 +81,7 @@ export const surfaces = {
   frozenGlass:{label:'Translucent ice',short:'Translucent ice',description:'Frozen clouds · internal cracks',roughness:.18},
   ...WORKSHOP_SURFACES,
 };
-export const grounds = {
-  studio:{label:'Studio',description:'A quiet neutral surface',wetness:.35,reflection:.35,scale:1},
-  asphalt:{label:'Wet asphalt',description:'Dark aggregate and wet patches',wetness:.85,reflection:.7,scale:1},
-  concrete:{label:'Concrete',description:'Mottled concrete with slab joints',wetness:.25,reflection:.22,scale:1},
-  sand:{label:'Sand',description:'Fine grains and wind ripples',wetness:0,reflection:0,scale:1},
-  wood:{label:'Wooden planks',description:'Individual boards with long grain',wetness:.25,reflection:.3,scale:1},
-};
+export const grounds = Object.fromEntries(GROUND_PRESETS.map(({key,...entry})=>[key,entry]));
 export const defaults = {seed:18427,shape:'boulder',facets:.5,roughness:.35,bevel:.5,displacement:0,geometryNoiseScale:2,noiseScale:2,noiseAmount:.45,normalStrength:.3,materialRoughness:.85,surface:'stone',snow:0,detail:.45,contrast:.55,lighting:'alpine',ground:'studio',reflection:.35,groundWetness:.35,groundScale:1,mapView:'beauty'};
-export const looks = {
-  alpine:{label:'Alpine',note:'Broken boulders and cold slate',options:{...defaults}},
-  desert:{label:'Desert',note:'Layered red sandstone on dry sand',options:{...defaults,shape:'stack',surface:'desert',materialRoughness:.90,ground:'sand',reflection:0,groundWetness:0,seed:72103,lighting:'sunset',noiseScale:2.2,noiseAmount:.65,normalStrength:.45}},
-  volcanic:{label:'Volcanic',note:'Polished black monolith over wet asphalt',options:{...defaults,shape:'monolith',surface:'obsidian',materialRoughness:.08,ground:'asphalt',reflection:.8,groundWetness:.9,seed:19423,noiseAmount:.22,normalStrength:.12,lighting:'soft'}},
-  ruins:{label:'Ruins',note:'Pale limestone courtyard fragments',options:{...defaults,shape:'ruins',surface:'limestone',materialRoughness:.93,ground:'concrete',reflection:.3,groundWetness:.3,seed:52311,noiseAmount:.6,normalStrength:.4}},
-  quarry:{label:'Quarry',note:'Granite blocks and a modular wall',options:{...defaults,shape:'wall',surface:'granite',materialRoughness:.72,ground:'wood',reflection:.25,groundWetness:.2,seed:66314,roughness:.15,normalStrength:.5,noiseScale:2.8}},
-  frozen:{label:'Frozen',note:'Crystal clusters on a reflective studio',options:{...defaults,shape:'crystals',surface:'ice',materialRoughness:.3,seed:72841,facets:.3,roughness:.22,bevel:.24,detail:.7,contrast:.7,reflection:.6,groundWetness:.55}},
-};
+export const looks = createWorldPresets(defaults);
 export const shapeGroupFor = (id) => shapeGroups.find(group=>group.shapes.includes(id))?.id || 'natural';

@@ -1,13 +1,7 @@
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
-
-export const GROUND_TYPES = Object.freeze({
-  studio: { label: 'Simple studio', description: 'A clean neutral sweep with a soft reflection.' },
-  asphalt: { label: 'Wet asphalt', description: 'Dark aggregate, irregular puddles, and reflective wet patches.' },
-  concrete: { label: 'Concrete', description: 'Mottled concrete slabs with recessed expansion joints.' },
-  sand: { label: 'Sand', description: 'Warm sand with wind-carved ripples and fine grain.' },
-  wood: { label: 'Wooden planks', description: 'Staggered timber boards, recessed seams, and flowing grain.' },
-});
+import { GROUND_TYPES, normalizeGroundId } from './ground-catalog.js';
+export { GROUND_TYPES } from './ground-catalog.js';
 
 export const ASPHALT_DEFAULTS = Object.freeze({
   asphaltRoughness: .32,
@@ -60,6 +54,65 @@ float groundFbm(vec2 p) {
   return groundNoise(p) * .57 + groundNoise(p * 2.07 + 17.3) * .28 + groundNoise(p * 4.31 + 9.2) * .15;
 }
 
+float groundFilteredNoise(vec2 p) {
+  float footprint = max(length(dFdx(p)), length(dFdy(p)));
+  return mix(groundNoise(p), .5, smoothstep(.5, 1.4, footprint));
+}
+float groundBand(float distance, float width) {
+  float aa = max(fwidth(distance) * .75, .0002);
+  return 1.0 - smoothstep(width - aa, width + aa, distance);
+}
+
+// Jittered cells supply independent chips and stone colors. Keeping the two
+// nearest centers also gives the distance to their shared straight boundary.
+void groundCells(vec2 p, out vec2 cell, out vec2 local, out float border) {
+  vec2 base = floor(p), nearestCenter = vec2(0.0), nextCenter = vec2(0.0);
+  float nearest = 100.0, second = 100.0;
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 id = base + vec2(float(x), float(y));
+      vec2 center = id + .5 + (vec2(groundHash(id + 1.7), groundHash(id + 23.9)) - .5) * .76;
+      vec2 delta = p - center;
+      float d = dot(delta, delta);
+      if (d < nearest) {
+        second = nearest; nextCenter = nearestCenter;
+        nearest = d; nearestCenter = center; cell = id;
+      } else if (d < second) { second = d; nextCenter = center; }
+    }
+  }
+  local = p - nearestCenter;
+  border = max(0.0, (second - nearest) / max(2.0 * length(nextCenter - nearestCenter), .001));
+}
+
+// A flagstone needs the nearest boundary plane, not just the second-nearest
+// seed. That approximation jumps inside a cell and creates false bump ridges.
+// Search around the winning seed so the candidate set stays fixed across its
+// face; the second ring includes diagonal neighbors of strongly jittered cells.
+float groundSlateBorder(vec2 p, vec2 cell, vec2 local) {
+  vec2 nearestCenter = p - local;
+  float border = 10.0;
+  for (int y = -2; y <= 2; y++) {
+    for (int x = -2; x <= 2; x++) {
+      if (x == 0 && y == 0) continue;
+      vec2 id = cell + vec2(float(x), float(y));
+      vec2 center = id + .5 + (vec2(groundHash(id + 1.7), groundHash(id + 23.9)) - .5) * .76;
+      vec2 direction = center - nearestCenter;
+      float distance = dot((center + nearestCenter) * .5 - p, direction) / max(length(direction), .001);
+      border = min(border, distance);
+    }
+  }
+  return max(0.0, border);
+}
+
+float groundChip(vec2 local, float seed, float radius) {
+  float angle = seed * 6.2831853;
+  vec2 q = mat2(cos(angle), -sin(angle), sin(angle), cos(angle)) * local;
+  q *= vec2(1.0, 1.0 + groundHash(vec2(seed, 8.2)) * .8);
+  // Six unequal cuts read as broken stone rather than circular polka dots.
+  float edge = max(max(abs(q.x) * .93, abs(q.y)), abs(q.x * .69 + q.y * .73));
+  return groundBand(edge, radius);
+}
+
 // Color is scene-linear. Height stays procedural and perturbs the PBR normal;
 // it does not create geometric displacement or change the flat reflection plane.
 void groundSurface(vec2 p, out vec3 tint, out float height, out float rough, out float reflectivity) {
@@ -97,19 +150,6 @@ void groundSurface(vec2 p, out vec3 tint, out float height, out float rough, out
     rough = mix(.86, uAsphaltRoughness, wet) + roughnessPattern * uAsphaltRoughnessVariation * wet;
     reflectivity = mix(.06, .94, wet) * mix(.78, 1.0, puddle);
   } else if (uGroundType > 1.5 && uGroundType < 2.5) {
-    vec2 slab = p / 2.4;
-    vec2 edge = min(fract(slab), 1.0 - fract(slab)) * 2.4;
-    float joint = 1.0 - smoothstep(.009, .023, min(edge.x, edge.y));
-    float board = groundHash(floor(slab));
-    float fleck = groundNoise(p * 20.0);
-    tint = mix(vec3(.20, .215, .225), vec3(.35, .35, .325), broad);
-    tint *= .89 + board * .15 + (grain - .5) * .06;
-    tint *= 1.0 - joint * .54;
-    tint *= mix(1.0, .78, wet);
-    height = .007 * fleck + .002 * grain - joint * .019;
-    rough = mix(.94, .35, wet * (.65 + broad * .35));
-    reflectivity = mix(.035, .65, wet);
-  } else if (uGroundType > 2.5 && uGroundType < 3.5) {
     float warp = groundFbm(p * vec2(.8, .45));
     float wave = sin(p.x * 18.0 + warp * 10.0 + sin(p.y * 1.7) * .65);
     float ripple = wave * .5 + .5;
@@ -120,24 +160,95 @@ void groundSurface(vec2 p, out vec3 tint, out float height, out float rough, out
     height = crest * .031 + groundNoise(p * 14.0) * .004 + grain * .0015;
     rough = mix(.98, .78, wet);
     reflectivity = wet * wet * .18;
-  } else if (uGroundType > 3.5) {
-    float row = floor(p.x / .39);
-    vec2 boardUV = vec2(p.x / .39, (p.y + mod(row, 2.0) * 1.34) / 2.68);
-    vec2 boardID = floor(boardUV);
-    vec2 f = fract(boardUV);
-    vec2 edge = min(f, 1.0 - f) * vec2(.39, 2.68);
-    float gap = 1.0 - smoothstep(.004, .014, min(edge.x, edge.y));
-    float board = groundHash(boardID + 7.0);
-    float flow = groundNoise(vec2(p.x * 7.0 + board * 14.0, p.y * .5));
-    float veins = sin(p.x * 155.0 + flow * 15.0 + board * 18.0) * .5 + .5;
-    veins = mix(veins, .5, smoothstep(.9, 2.2, length(fwidth(p * vec2(155.0, 1.0)))));
-    float longGrain = groundFbm(p * vec2(38.0, 1.2) + board * 8.0);
-    tint = mix(vec3(.10, .052, .023), vec3(.32, .19, .088), board * .6 + longGrain * .4);
-    tint *= .82 + veins * .19 + broad * .20;
-    tint = mix(tint, vec3(.022, .015, .009), gap);
-    height = (veins * .002 + longGrain * .004) * (1.0 - gap) - gap * .025;
-    rough = mix(.83, .27, wet) + gap * .13;
-    reflectivity = mix(.09, .78, wet) * (1.0 - gap * .93);
+  } else if (uGroundType > 2.5 && uGroundType < 3.5) {
+    vec2 cell, local; float border;
+    groundCells(p * vec2(.84, 1.03), cell, local, border);
+    border = groundSlateBorder(p * vec2(.84, 1.03), cell, local);
+    float stone = groundHash(cell + 51.2);
+    float joint = groundBand(border, .012);
+    float bevel = smoothstep(.009, .04 + fwidth(border), border);
+    float layers = groundFbm(p * vec2(3.4, 11.0) + stone * 17.0);
+    float cleft = groundFilteredNoise(p * vec2(9.0, 34.0) + layers * 1.4);
+    tint = mix(vec3(.047, .060, .068), vec3(.10, .118, .123), stone * .6 + broad * .4);
+    tint *= .9 + layers * .19 + (grain - .5) * .025;
+    tint = mix(tint * mix(1.0, .76, wet), vec3(.022, .026, .027), joint);
+    height = bevel * .006 + layers * .0028 + cleft * .0008 - joint * .003;
+    rough = mix(.84, .34, wet) + (cleft - .5) * .1 + joint * .15;
+    reflectivity = mix(.055, .66, wet) * (1.0 - joint * .9);
+  } else if (uGroundType > 3.5 && uGroundType < 4.5) {
+    vec2 tile = p / vec2(1.3, .78);
+    tile.x += mod(floor(tile.y), 2.0) * .5;
+    vec2 tileID = floor(tile), edge = min(fract(tile), 1.0 - fract(tile)) * vec2(1.3, .78);
+    float border = min(edge.x, edge.y), joint = groundBand(border, .006);
+    float stone = groundHash(tileID + 4.2);
+    float strata = groundFbm(vec2(p.x * .65, p.y * 11.0 + groundNoise(p * .7) * 2.8) + stone * 11.0);
+    vec2 poresP = p * vec2(25.0, 48.0), poresID = floor(poresP);
+    vec2 poresLocal = fract(poresP) - .5;
+    float poresSeed = groundHash(poresID + 81.2);
+    float pore = groundBand(length(poresLocal * vec2(.8, 1.0)), .08 + poresSeed * .1) * step(.70, poresSeed);
+    pore *= 1.0 - smoothstep(.55, 1.3, length(fwidth(poresP)));
+    tint = mix(vec3(.46, .361, .244), vec3(.63, .535, .399), strata * .65 + stone * .35);
+    tint *= .98 + (grain - .5) * .026;
+    tint = mix(tint, vec3(.28, .215, .143), pore * .35);
+    tint = mix(tint * mix(1.0, .84, wet), vec3(.31, .274, .218), joint);
+    height = smoothstep(.006, .027 + fwidth(border), border) * .003 - pore * .0012 + strata * .0006;
+    rough = mix(.68, .25, wet) + pore * .16 + (strata - .5) * .05 + joint * .18;
+    reflectivity = mix(.10, .64, wet) * (1.0 - joint * .8);
+  } else if (uGroundType > 4.5 && uGroundType < 5.5) {
+    vec2 cell, local; float border;
+    vec2 chipP = p * 17.0;
+    groundCells(chipP, cell, local, border);
+    float chipSeed = groundHash(cell + 68.0);
+    float chips = groundChip(local, chipSeed, .17 + groundHash(cell + 2.1) * .18);
+    // Fade the whole chip contrast below a pixel, rather than leaving an
+    // aliased collection of high-contrast specks on the far side of the floor.
+    chips *= 1.0 - smoothstep(.65, 1.6, length(fwidth(chipP)));
+    vec3 chipColor = vec3(.085, .096, .092);
+    if (chipSeed > .28) chipColor = vec3(.295, .173, .12);
+    if (chipSeed > .49) chipColor = vec3(.195, .25, .218);
+    if (chipSeed > .72) chipColor = vec3(.69, .625, .49);
+    tint = mix(vec3(.53, .496, .422), vec3(.62, .583, .499), broad * .45 + .22);
+    tint = mix(tint, chipColor * (.88 + groundHash(cell + 9.0) * .2), chips);
+    tint *= mix(1.0, .92, wet) * (.995 + (grain - .5) * .012);
+    height = grain * .0003 + chips * .00012;
+    rough = mix(.49, .18, wet) + (grain - .5) * .055 - chips * .035;
+    reflectivity = mix(.18, .78, wet);
+  } else if (uGroundType > 5.5 && uGroundType < 6.5) {
+    vec2 hp = p / .72, lattice = vec2(1.0, 1.7320508);
+    vec2 a = mod(hp, lattice) - lattice * .5;
+    vec2 b = mod(hp - lattice * .5, lattice) - lattice * .5;
+    vec2 local = dot(a, a) < dot(b, b) ? a : b;
+    vec2 tileID = hp - local;
+    float border = (.5 - max(abs(local.x), dot(abs(local), vec2(.5, .8660254)))) * .72;
+    float joint = groundBand(border, .008);
+    float bevel = smoothstep(.008, .029 + fwidth(border), border);
+    float tile = groundHash(tileID + 34.5);
+    float cloud = groundFbm(p * 4.0 + tile * 8.0);
+    tint = mix(vec3(.021, .027, .033), vec3(.049, .060, .066), tile * .64 + cloud * .36);
+    tint *= mix(1.0, .8, wet) * (.98 + (grain - .5) * .04);
+    tint = mix(tint, vec3(.087, .097, .095), joint);
+    height = bevel * .004 + cloud * .0007 + grain * .0002;
+    rough = mix(.59, .24, wet) + (tile - .5) * .07 + joint * .24;
+    reflectivity = mix(.13, .76, wet) * (1.0 - joint * .86);
+  } else if (uGroundType > 6.5) {
+    vec2 cell, local; float border;
+    groundCells(p * .85, cell, local, border);
+    float crack = groundBand(border, .007) * smoothstep(.48, .69, groundFbm(p * 1.3));
+    vec2 pebbleCell, pebbleLocal; float pebbleBorder;
+    vec2 gritP = p * 13.0;
+    groundCells(gritP, pebbleCell, pebbleLocal, pebbleBorder);
+    float stone = groundHash(pebbleCell + 23.1);
+    float grit = groundChip(pebbleLocal, stone, .10 + stone * .11) * step(.67, stone);
+    grit *= 1.0 - smoothstep(.6, 1.4, length(fwidth(gritP)));
+    float clumps = groundFilteredNoise(p * 17.0);
+    float damp = wet * smoothstep(.32, .67, broad);
+    tint = mix(vec3(.105, .067, .038), vec3(.237, .163, .094), broad * .72 + clumps * .28);
+    tint *= .94 + (grain - .5) * .085;
+    tint = mix(tint, vec3(.24, .218, .174), grit * .7);
+    tint = mix(tint * mix(1.0, .59, damp), vec3(.052, .036, .023), crack * .65);
+    height = clumps * .002 + grain * .0004 + grit * .0015 - crack * .004;
+    rough = mix(.98, .73, damp) - grit * .035;
+    reflectivity = .008 + damp * damp * .14;
   }
 }
 
@@ -283,7 +394,7 @@ export function createGround(renderer, scene, options = {}) {
         #include <opaque_fragment>`);
     material.userData.shader = shader;
   };
-  material.customProgramCacheKey = () => 'rock-lab-ground-pbr-planar-asphalt-v2';
+  material.customProgramCacheKey = () => 'rock-lab-ground-pbr-eight-surfaces-v3';
 
   const floor = new THREE.Mesh(geometry, material);
   floor.name = 'Procedural ground surface';
@@ -346,7 +457,7 @@ export function createGround(renderer, scene, options = {}) {
       if (Number.isFinite(next[key])) state[key] = THREE.MathUtils.clamp(next[key], min, max);
       uniforms[asphaltUniform(key)].value = state[key];
     }
-    if (Object.hasOwn(GROUND_TYPES, next.ground)) state.ground = next.ground;
+    if (Object.hasOwn(next, 'ground')) state.ground = normalizeGroundId(next.ground, state.ground);
     if (next.studioColor !== undefined) {
       state.studioColor = next.studioColor;
       uniforms.uStudioColor.value.set(next.studioColor);

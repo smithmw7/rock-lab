@@ -194,7 +194,7 @@ const SCENES = {
     ],
   },
   'quarry-yard': {
-    environment: {"lighting":"soft","ground":"concrete","reflection":0.18,"groundWetness":0.2,"groundScale":1},
+    environment: {"lighting":"soft","ground":"travertine","reflection":0.18,"groundWetness":0.2,"groundScale":1},
     objects: [
       object("quarry-yard-base", "Quarry working shelf", "ovalPlatform", "granite", 39456, [0,0,0], [0,0,0], [3.1,0.55,3.4], {"noiseAmount":0.12,"detail":0.25,"contrast":0.3,"normalStrength":0.15,"cloudiness":0.03,"inclusions":0.06,"absorptionColor":"#e9fff7","attenuationDistance":4.5,"metalWear":0.15,"woodGrainStrength":0.65}),
       object("quarry-yard-wall", "Quarry cut face", "cliffFace", "granite", 39527, [-2.35,0.3025,-1.55], [0,-5,0], [0.78,0.8,0.7], {"cloudiness":0.03,"inclusions":0.06,"absorptionColor":"#e9fff7","attenuationDistance":4.5,"metalWear":0.15,"woodGrainStrength":0.65}),
@@ -213,7 +213,7 @@ const SCENES = {
     ],
   },
   'artisan-terrace': {
-    environment: {"lighting":"soft","ground":"wood","reflection":0.18,"groundWetness":0.2,"groundScale":1},
+    environment: {"lighting":"soft","ground":"slate","reflection":0.18,"groundWetness":0.2,"groundScale":1},
     objects: [
       object("artisan-terrace-base", "Artisan stone terrace", "ovalPlatform", "limestone", 40547, [0,0,0], [0,0,0], [3,0.65,3.4], {"cloudiness":0.03,"inclusions":0.06,"absorptionColor":"#e9fff7","attenuationDistance":4.5,"metalWear":0.15,"woodGrainStrength":0.65}),
       object("artisan-terrace-display", "Raised display dais", "platform", "limestone", 40618, [-2,0.357305,-0.9], [0,0,0], [0.94,2.8,0.78], {"cloudiness":0.03,"inclusions":0.06,"absorptionColor":"#e9fff7","attenuationDistance":4.5,"metalWear":0.15,"woodGrainStrength":0.65,"roughness":0.07}),
@@ -233,7 +233,7 @@ const SCENES = {
     ],
   },
   'garden-courtyard': {
-    environment: {"lighting":"soft","ground":"concrete","reflection":0.2,"groundWetness":0.25,"groundScale":1},
+    environment: {"lighting":"soft","ground":"travertine","reflection":0.2,"groundWetness":0.25,"groundScale":1},
     objects: [
       object("garden-courtyard-base", "Garden courtyard foundation", "roundPlatform", "limestone", 41638, [0,0,0], [0,0,0], [3.25,0.5,2.55], {"cloudiness":0.03,"inclusions":0.06,"absorptionColor":"#e9fff7","attenuationDistance":4.5,"metalWear":0.15,"woodGrainStrength":0.65}),
       object("garden-courtyard-terrace", "Upper garden terrace", "platform", "limestone", 41709, [0,0.273809,-1.05], [0,0,0], [1.3,2.7,0.78], {"cloudiness":0.03,"inclusions":0.06,"absorptionColor":"#e9fff7","attenuationDistance":4.5,"metalWear":0.15,"woodGrainStrength":0.65,"roughness":0.06}),

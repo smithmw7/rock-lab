@@ -108,7 +108,10 @@ function inspectColliders(){
 }
 
 try{
-  await page.goto(report.url);await page.waitForFunction(()=>window.rockLab?.ready&&window.rockLab.sceneEditor);
+  // This suite starts in plain asset inspection, then tests both fracture transitions.
+  // Default-on startup and tap destruction are covered by qa:studio-expansion.
+  const inspectionUrl=new URL(report.url);inspectionUrl.searchParams.set('fracture','0');
+  await page.goto(inspectionUrl.href);await page.waitForFunction(()=>window.rockLab?.ready&&window.rockLab.sceneEditor);
   const initial=await snapshot();assert.equal(initial.mode,'object');assert.equal(initial.scene.instances,0);assert.equal(await page.locator('#scene-toolbar').isVisible(),false);assert.ok(initial.original.length&&initial.original.every(root=>root.visible));
   report.checks.defaultObject={shape:initial.recipe.options.shape,visible:true};await capture('object-default');
   const untouched=await exportFile('untouched-object-v6');assert.equal(untouched.data.scene.initialized,false);await importFile(untouched.filename);const untouchedRestored=await snapshot();assert.equal(untouchedRestored.scene.instances,0);assert.deepEqual(untouchedRestored.recipe,untouched.data,'An untouched Object recipe roundtrips every field, including null scene environment');

@@ -3,6 +3,7 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 
 export const SCENE_LIMITS=Object.freeze({instances:64,pieces:512,triangles:300000});
+export const SCENE_HISTORY_LIMIT=50;
 export const SCENE_DEFAULTS=Object.freeze({tool:'select',space:'world',snap:false,translationSnap:.25,rotationSnap:15,scaleSnap:.1,renderMode:'shaded',grid:true});
 const TOOLS=['select','translate','rotate','scale'],MODES=['shaded','wireframe','collider','normals'];
 const SETTING_RANGES={translationSnap:[.01,10],rotationSnap:[1,90],scaleSnap:[.01,2]};
@@ -73,14 +74,56 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
   const colliderEdgeMaterial=new THREE.LineBasicMaterial({color:0x86efd0,transparent:true,opacity:.85});colliderEdgeMaterial.name='Scene convex collider edges';
   const records=new Map(),document=domElement.ownerDocument,raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),activePointers=new Set();
   let settings={...SCENE_DEFAULTS},active=false,selectedId=null,destroyed=false,serial=0,notifying=false,dragOrbitState=null,pointerStart=null;
+  // Only JSON recipes and transforms are retained. Undo builds an owned scene
+  // transactionally; no disposed meshes or GPU resources live in history.
+  const undoEntries=[],redoEntries=[];
+  let editDepth=0,editBefore=null,editLabel='',restoringHistory=false,dragEdit=false;
 
   const say=text=>onMessage(text);
   const selected=()=>records.get(selectedId)??null;
   function totals(list=records.values()){const values=[...list];return{instances:values.length,pieces:values.reduce((n,record)=>n+record.pieces,0),triangles:values.reduce((n,record)=>n+record.triangles,0)};}
   function withinBudget(values){for(const key of Object.keys(SCENE_LIMITS))if(values[key]>SCENE_LIMITS[key])throw new Error(`Scene limit reached: ${SCENE_LIMITS[key].toLocaleString()} ${key}. Remove an object or use a simpler asset.`);}
   function objectSnapshot(record){return{id:record.id,name:record.name,recipe:copyRecipe(record.recipe),...transformOf(record.node),pieces:record.pieces,triangles:record.triangles};}
-  function getSnapshot(){return{active,selectedId,selection:selected()?objectSnapshot(selected()):null,objects:[...records.values()].map(objectSnapshot),settings:{...settings},budgets:{...SCENE_LIMITS},...totals(),dragging:gizmo.dragging};}
+  function getSnapshot(){return{active,selectedId,selection:selected()?objectSnapshot(selected()):null,objects:[...records.values()].map(objectSnapshot),settings:{...settings},budgets:{...SCENE_LIMITS},...totals(),dragging:gizmo.dragging,history:getHistoryState()};}
   function notify(){if(destroyed||notifying)return;notifying=true;try{onChange(getSnapshot());}finally{notifying=false;}}
+  function historySnapshot(){const {objects,selectedId}=serialize();return{objects,selectedId};}
+  function getHistoryState(){return{canUndo:undoEntries.length>0,canRedo:redoEntries.length>0,undoLabel:undoEntries.at(-1)?.label??'',redoLabel:redoEntries.at(-1)?.label??'',undoCount:undoEntries.length,redoCount:redoEntries.length};}
+  function beginEdit(label='Edit object'){
+    if(destroyed||restoringHistory)return false;
+    if(editDepth===0){editBefore=historySnapshot();editLabel=readableName(label,'Edit object');}
+    editDepth++;return true;
+  }
+  function endEdit(){
+    if(!editDepth||restoringHistory)return false;
+    editDepth--;if(editDepth)return false;
+    const before=editBefore,after=historySnapshot(),label=editLabel;editBefore=null;editLabel='';
+    // Selecting an object, including inside an empty transaction, is not an edit.
+    if(JSON.stringify(before.objects)===JSON.stringify(after.objects))return false;
+    undoEntries.push({label,before,after});if(undoEntries.length>SCENE_HISTORY_LIMIT)undoEntries.shift();redoEntries.length=0;notify();return true;
+  }
+  function edit(label,operation){const started=beginEdit(label);try{return operation();}finally{if(started)endEdit();}}
+  function clearHistory(){undoEntries.length=0;redoEntries.length=0;editDepth=0;editBefore=null;editLabel='';notify();}
+  function restoreHistory(from,to,direction){
+    if(destroyed||restoringHistory)return false;
+    stopDrag();while(editDepth)endEdit();
+    const entry=from.at(-1);if(!entry)return false;
+    restoringHistory=true;
+    try{
+      // Display settings are review controls, not part of object edit history.
+      load({version:1,...entry[direction],settings:{...settings}},{preserveHistory:true});
+      from.pop();to.push(entry);notify();return true;
+    }catch(error){say(`Unable to ${direction==='before'?'undo':'redo'}: ${error.message}`);return false;}
+    finally{restoringHistory=false;}
+  }
+  const undo=()=>restoreHistory(undoEntries,redoEntries,'before');
+  const redo=()=>restoreHistory(redoEntries,undoEntries,'after');
+  function add(...args){return edit('Add object',()=>addRecord(...args));}
+  function replaceSelected(...args){return edit('Change object',()=>replaceRecord(...args));}
+  function duplicateSelected(...args){return edit('Duplicate object',()=>duplicateRecord(...args));}
+  function deleteSelected(...args){return edit('Delete object',()=>deleteRecord(...args));}
+  function setTransform(...args){return edit('Transform object',()=>transformRecord(...args));}
+  function renameSelected(...args){return edit('Rename object',()=>renameRecord(...args));}
+  function updateSelectedRecipe(...args){return edit('Change material',()=>updateRecordRecipe(...args));}
   function restoreOrbit(){if(dragOrbitState!==null&&orbitControls){orbitControls.enabled=dragOrbitState;dragOrbitState=null;}}
   function stopDrag(){if(gizmo.dragging)gizmo.dragging=false;restoreOrbit();pointerStart=null;activePointers.clear();}
   function updateSelection(){
@@ -171,14 +214,14 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
     let next;try{next=settingsValues(input,settings);if(next.renderMode==='collider')for(const record of records.values())prepareCollider(record);}catch(error){say(error.message);return false;}
     stopDrag();settings=next;applySettings();notify();return true;
   }
-  function add(recipe,options={}){
+  function addRecord(recipe,options={}){
     if(destroyed)return null;let record;
     try{record=createRecord(recipe,{name:options.name,transform:options.transform});withinBudget(totals([...records.values(),record]));if(settings.renderMode==='collider')prepareCollider(record);}
     catch(error){if(record)releaseRecord(record);say(error.message);return null;}
     records.set(record.id,record);root.add(record.node);applyRenderMode(record);
     if(options.select!==false)select(record.id);else notify();return record.id;
   }
-  function replaceSelected(recipe){
+  function replaceRecord(recipe){
     const previous=selected();if(!previous||destroyed)return false;let record;
     try{
       record=createRecord(recipe,{id:previous.id,name:previous.name,transform:transformOf(previous.node)});
@@ -187,26 +230,26 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
     }catch(error){if(record)releaseRecord(record);say(error.message);return false;}
     stopDrag();gizmo.detach();records.set(record.id,record);root.add(record.node);releaseRecord(previous);applyRenderMode(record);updateSelection();onSelect(record.id,objectSnapshot(record));notify();return true;
   }
-  function duplicateSelected(){
+  function duplicateRecord(){
     const record=selected();if(!record)return null;
     const transform=transformOf(record.node);transform.position[0]=clamp(transform.position[0]+.5,-50,50);transform.position[2]=clamp(transform.position[2]+.5,-50,50);
     return add(record.recipe,{name:`${record.name} copy`,transform});
   }
-  function deleteSelected(){
+  function deleteRecord(){
     const record=selected();if(!record||destroyed)return false;stopDrag();gizmo.detach();records.delete(record.id);selectedId=null;releaseRecord(record);updateSelection();onSelect(null,null);notify();return true;
   }
-  function setTransform(input){
+  function transformRecord(input){
     const record=selected();if(!record||destroyed)return false;
     try{
       const transform=transformValues(input,transformOf(record.node));
       applyTransform(record.node,transform);updateSelection();notify();return true;
     }catch(error){say(error.message);return false;}
   }
-  function renameSelected(name){const record=selected();if(!record||typeof name!=='string'||!name.trim())return false;record.name=readableName(name);record.node.name=record.name;notify();return true;}
-  function updateSelectedRecipe(recipe){const record=selected();if(!record||destroyed)return false;try{record.recipe=copyRecipe(recipe);notify();return true;}catch(error){say(error.message);return false;}}
+  function renameRecord(name){const record=selected();if(!record||typeof name!=='string'||!name.trim())return false;record.name=readableName(name);record.node.name=record.name;notify();return true;}
+  function updateRecordRecipe(recipe){const record=selected();if(!record||destroyed)return false;try{record.recipe=copyRecipe(recipe);notify();return true;}catch(error){say(error.message);return false;}}
   function setActive(value){if(destroyed)return;active=Boolean(value);if(!active)stopDrag();root.visible=active;applySettings();notify();}
   function serialize(){return{version:1,selectedId,objects:[...records.values()].map(record=>{const{id,name,recipe,position,rotation,scale}=objectSnapshot(record);return{id,name,recipe,position,rotation,scale};}),settings:{...settings}};}
-  function load(data){
+  function load(data,{preserveHistory=false}={}){
     if(destroyed)throw new Error('The scene editor is closed.');
     if(!data||typeof data!=='object'||data.version!==1||!Array.isArray(data.objects))throw new Error('Unsupported scene file.');
     if(data.objects.length>SCENE_LIMITS.instances)throw new Error(`Scene limit reached: ${SCENE_LIMITS.instances} instances.`);
@@ -226,7 +269,9 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
     }catch(error){for(const record of staged)releaseRecord(record);throw error;}
     stopDrag();gizmo.detach();for(const record of records.values())releaseRecord(record);records.clear();
     for(const record of staged){records.set(record.id,record);root.add(record.node);}
-    selectedId=data.selectedId===undefined?(staged[0]?.id??null):data.selectedId;settings=nextSettings;applySettings();onSelect(selectedId,selected()?objectSnapshot(selected()):null);notify();return true;
+    selectedId=data.selectedId===undefined?(staged[0]?.id??null):data.selectedId;settings=nextSettings;
+    if(!preserveHistory)clearHistory();
+    applySettings();onSelect(selectedId,selected()?objectSnapshot(selected()):null);notify();return true;
   }
   function getBounds(selection=false){
     const bounds=new THREE.Box3();root.updateWorldMatrix(true,true);
@@ -263,6 +308,9 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
     if(!active||event.defaultPrevented||event.altKey||document.querySelector?.('dialog[open]'))return;
     const target=event.target;if(target?.closest?.('input,textarea,select,[contenteditable="true"],[role="textbox"]'))return;
     const key=event.key.toLowerCase();
+    if((event.ctrlKey||event.metaKey)&&(key==='z'||key==='y')){
+      event.preventDefault();if(key==='y'||event.shiftKey)redo();else undo();return;
+    }
     if((event.ctrlKey||event.metaKey)&&key==='d'){event.preventDefault();duplicateSelected();return;}
     if(event.ctrlKey||event.metaKey)return;
     const tool={q:'select',w:'translate',e:'rotate',r:'scale'}[key];
@@ -270,7 +318,12 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
     else if(key==='f'){event.preventDefault();onFrame(true);}
     else if(key==='delete'||key==='backspace'){event.preventDefault();deleteSelected();}
   };
-  const onDragging=event=>{if(event.value){if(orbitControls&&dragOrbitState===null){dragOrbitState=orbitControls.enabled;orbitControls.enabled=false;}}else restoreOrbit();};
+  const onDragging=event=>{
+    if(event.value){
+      if(!dragEdit){dragEdit=beginEdit(`${{translate:'Move',rotate:'Rotate',scale:'Scale'}[settings.tool]??'Transform'} object`);}
+      if(orbitControls&&dragOrbitState===null){dragOrbitState=orbitControls.enabled;orbitControls.enabled=false;}
+    }else{restoreOrbit();if(dragEdit){dragEdit=false;endEdit();}}
+  };
   const onObjectChange=()=>{
     const record=selected();if(!active||!record)return;
     const transform=transformValues(transformOf(record.node));applyTransform(record.node,transform);updateSelection();notify();
@@ -281,9 +334,9 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
     if(destroyed)return;stopDrag();active=false;gizmo.detach();gizmo.removeEventListener('dragging-changed',onDragging);gizmo.removeEventListener('objectChange',onObjectChange);gizmo.dispose();domElement.style.touchAction=originalTouchAction;gizmoHelper.removeFromParent();
     domElement.removeEventListener('pointerdown',onPointerDown);domElement.removeEventListener('pointermove',onPointerMove);domElement.removeEventListener('pointerup',onPointerUp);domElement.removeEventListener('pointercancel',onPointerCancel);document.removeEventListener('keydown',onKeyDown);
     for(const record of records.values())releaseRecord(record);records.clear();root.removeFromParent();grid.removeFromParent();grid.geometry.dispose();for(const material of Array.isArray(grid.material)?grid.material:[grid.material])material.dispose();selectionHelper.removeFromParent();selectionHelper.geometry.dispose();selectionHelper.material.dispose();
-    for(const material of [wireMaterial,normalMaterial,colliderMaterial,colliderEdgeMaterial])material.dispose();destroyed=true;
+    for(const material of [wireMaterial,normalMaterial,colliderMaterial,colliderEdgeMaterial])material.dispose();undoEntries.length=0;redoEntries.length=0;editBefore=null;editDepth=0;destroyed=true;
   }
-  return{setActive,add,replaceSelected,select,duplicateSelected,deleteSelected,setTool:tool=>updateSettings({tool}),updateSettings,setTransform,renameSelected,updateSelectedRecipe,serialize,load,getSnapshot,getRoot:()=>root,getBounds,
+  return{setActive,add,replaceSelected,select,duplicateSelected,deleteSelected,setTool:tool=>updateSettings({tool}),updateSettings,setTransform,renameSelected,updateSelectedRecipe,serialize,load,getSnapshot,getRoot:()=>root,getBounds,undo,redo,getHistoryState,beginEdit,endEdit,clearHistory,
     getSelected:()=>{const record=selected();return record?{id:record.id,name:record.name,group:record.content,node:record.node,recipe:copyRecipe(record.recipe)}:null;},
     getTransformControls:()=>gizmo,getSelectionHelper:()=>selectionHelper,step:()=>{if(active&&!destroyed)updateSelection();},destroy};
 }

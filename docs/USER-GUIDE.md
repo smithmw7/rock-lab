@@ -17,6 +17,8 @@ Open [Rock Lab](http://127.0.0.1:5207/). This project uses a strict port. `npm r
 
 The toolbar provides select, move, rotate, scale, add, duplicate, delete, frame selection, and frame all. **Snap** applies the configured move, angle, and scale increments to gizmo drags. Numeric transform fields accept precise values. **Render** switches between shaded 3D, wireframe, convex colliders, and geometry normals. **Grid** shows world-unit floor lines.
 
+**Scene → Undo / Redo** restores object edits, including transforms, geometry, materials, names, additions, and deletions. A continuous drag or slider adjustment counts as one edit. Use Ctrl/Cmd + Z to undo and Shift + Ctrl/Cmd + Z or Ctrl/Cmd + Y to redo.
+
 Save the arrangement with **File → Save scene**. [The Scene guide](SCENE.md) covers keyboard controls, independent recipes, collision previews, and limits. Destruction testing stays in Object mode.
 
 ## Shape families and sets
@@ -38,7 +40,7 @@ The **Shape** inspector opens to a scrollable **All** library. Search by object 
 
 There are **79 objects**, including the [modular kit, workshop, terrain, and path collections](OBJECT-LIBRARY.md). The modular kit uses shared units; its small, medium, and large blocks have nominal sides of 0.8, 1.5, and 2.5 units before edge wear or displacement. Existing rock forms keep their original presentation scale. All geometry presets can use any current material. Workshop objects supply an initial finish when selected.
 
-Six **world presets** combine shapes, materials, lighting, and ground: Alpine, Desert, Volcanic, Ruins, Quarry, and Frozen. These are starting recipes. Every component can be changed independently afterward. The Structures family contains actual multi-piece assemblies, not thumbnails of suggested assets.
+The scrolling strip contains **56 world presets**, including the original Alpine, Desert, Volcanic, Ruins, Quarry, and Frozen looks plus 50 stone, terrain, architecture, path, wood, metal, glass, and pottery recipes. **Randomize** is the first card and chooses a different look with a fresh seed. Tap the active preset again to generate a new version of that style. Scroll or swipe through the strip; arrow keys and Home/End move keyboard focus. Presets preserve your Tap destruction setting. Every component can be changed independently afterward. The Structures family contains actual multi-piece assemblies, not thumbnails of suggested assets.
 
 The seed, plane cuts/detail, irregularity/distortion, and bevel controls generate the geometry. **Variations** compares five seeds, incremented by 137 with wrapping at 999999. Click an asset to keep its seed. Paths use a single layout; change Seed to generate another variation. Drag to orbit and scroll to zoom.
 
@@ -74,7 +76,7 @@ Selecting a material restores its authored base roughness. **Surface roughness**
 
 ## Tap destruction with three-pinata
 
-Open **Fracture** and enable **Tap destruction**. Tap or click a part to fracture it, then tap a fragment to break it again. Dragging continues to orbit the camera. **Break asset** fractures the assembly, **Pause debris** freezes the simulation for material inspection, and **Reset destruction** restores the intact source. Selecting a different shape or seed creates a fresh test. Turntable stays available during destruction, circling the view around intact pieces or moving and paused debris. Turning it off leaves destruction enabled. Variations returns to asset inspection.
+**Tap destruction** starts enabled. Open **Fracture** to adjust it. Tap or click a part to fracture it, then tap a fragment to break it again. Dragging continues to orbit the camera. **Break asset** fractures the assembly, **Pause debris** freezes the simulation for material inspection, and **Reset destruction** restores the intact source. Selecting a different shape or seed creates a fresh test. Turntable stays available during destruction, circling the view around intact pieces or moving and paused debris. Turning it off leaves destruction enabled. Variations returns to asset inspection.
 
 Debris settles automatically after landing. Resting fragments stay available for another tap and can move again when struck by falling pieces. The impact setting gives small and large fragments a consistent launch speed, with a bounded tumble so tiny chips do not shoot out of the preview.
 
@@ -112,15 +114,19 @@ The **Shape** inspector contains **Displacement** and an independent **Shape noi
 
 Displacement zero uses the cheaper original meshes. Nonzero displacement rebuilds geometry when its settings change; it is not evaluated every animation frame. Five displaced variations can take longer to regenerate. The triangle counter and generation timing show the current cost. This is not physical-device performance validation.
 
+## Lighting
+
+The **Studio → Lighting** menu offers eight setups: Alpine, Soft studio, Warm sunset, Clear daylight, Golden hour, Moonlight, Overcast, and Dramatic. They change the key light, sky fill, rim light, and background together. Exposure remains independently adjustable.
+
 ## Ground and reflections
 
-The **Ground** inspector contains exactly five surfaces: **Studio, Wet asphalt, Concrete, Sand, Wooden planks**. Each has procedural color, roughness, and normal relief, with its own wetness response. Texture scale changes the size of its pattern.
+The **Ground** inspector contains eight surfaces: **Studio, Wet asphalt, Sand, Slate flagstone, Warm travertine, Ivory terrazzo, Basalt hex tiles, and Packed earth**. Each has procedural color, roughness, and normal relief, with its own wetness response. Texture scale changes the size of its pattern: higher values make larger features. Old recipes using Concrete load Warm travertine; Wooden planks load Slate flagstone.
 
 Reflections use an actual planar virtual-camera render, sampled into the PBR floor material. Surface roughness and wetness mask and soften the result. **Reflection strength = 0** skips the additional scene render. Dry sand defaults to zero reflection; enable wetness and reflection for a wet-sand study. Reflection render targets are bounded to 1024 pixels per dimension.
 
 When **Wet asphalt** is selected, the Ground inspector adds **Asphalt roughness**, **Roughness breakup**, **Normal strength**, **Normal detail scale**, **Reflection distortion**, **Puddle ripples**, and **Ripple speed**. Roughness sets the wet surface finish, with wetness blending toward dry asphalt. The normal field adds aggregate and ripple detail to lighting and distorts the planar reflection. Set normal strength to zero for a flat surface, reflection distortion to zero for an undistorted mirror, or ripple speed to zero to freeze the current ripple pattern. **Reset asphalt detail** restores these seven controls without changing the asset.
 
-These are GPU procedural normals derived from a height field, with live uniform controls. No normal-map image is regenerated or downloaded. Ripples animate only on the asphalt surface; their amplitude is concentrated in wet patches. Recipe JSON includes the seven settings, and older recipes receive defaults. The other ground types retain their existing materials.
+These are GPU procedural normals derived from a height field, with live uniform controls. No normal-map image is regenerated or downloaded. Ripples animate only on the asphalt surface; their amplitude is concentrated in wet patches. Recipe JSON includes the seven settings, and older recipes receive defaults. Studio and sand retain their original materials.
 
 This is an approximation of rough planar reflections. It is not ray tracing, and the rock surfaces use a studio environment for their own glossy reflections. Original Glacier ice remains opaque; the separate Glass & crystal family supports transmission. Snow is still a surface coating without cap thickness or icicles.
 
@@ -141,7 +147,7 @@ A normal map changes lighting, while displacement moves vertices. Three's GPU di
 
 ## Save, restore, and reuse
 
-**File → Save recipe / Save scene** downloads a version 6 JSON recipe containing shape, seed, geometry, lathe profile, tool variants, path points and layout settings, repeated source object, independent outer/inner materials for every part, channel views, lighting, ground, and fracture settings. Fracture recipes restore the intact asset, ready for a new test; they do not serialize moving debris. **File → Load recipe** or drag-and-drop restores it. Versions 1–5 are accepted with defaults for newly introduced controls and open in Object mode. Scene recipes additionally store independent instance recipes, names, transforms, selection, display/snapping settings, and environment, alongside the original Object draft. Camera position, turntable, active inspector, and Object comparison/wireframe modes are not serialized.
+**File → Save recipe / Save scene** downloads a version 6 JSON recipe containing shape, seed, geometry, lathe profile, tool variants, path points and layout settings, repeated source object, independent outer/inner materials for every part, channel views, lighting, ground, and fracture settings. Fracture recipes restore the intact asset, ready for a new test; they do not serialize moving debris. **File → Load recipe** or drag-and-drop restores it. Versions 1–5 are accepted with defaults for newly introduced controls and open in Object mode. Scene recipes additionally store independent instance recipes, names, transforms, selection, display/snapping settings, and environment, alongside the original Object draft. Undo history, camera position, turntable, active inspector, and Object comparison/wireframe modes are not serialized.
 
 **File → Save image** downloads the current viewport, including floor and reflections, as a PNG. The app currently exports recipes and PNGs. It does not export GLB or baked texture maps.
 

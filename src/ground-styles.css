@@ -1,0 +1,47 @@
+/* Floor cards use CSS samples so browsing never needs extra render targets. */
+.ground-grid button span{min-height:43px;display:flex;align-items:center;line-height:1.35}
+.ground-swatch.slate{
+  background:
+    linear-gradient(27deg,transparent 47%,#202c32 48% 50%,transparent 51%) 0 0/71px 61px,
+    linear-gradient(112deg,transparent 47%,#202c32 48% 50%,transparent 51%) 13px 0/87px 53px,
+    repeating-linear-gradient(168deg,#6a787d22 0 2px,transparent 3px 10px),
+    linear-gradient(130deg,#63757c,#3d4c54 48%,#7b8587);
+}
+.ground-swatch.travertine{
+  background:
+    linear-gradient(0deg,transparent 48%,#a1937c 49% 51%,transparent 52%) 0 0/100% 42px,
+    linear-gradient(90deg,transparent 48%,#a1937c 49% 51%,transparent 52%) 0 0/88px 100%,
+    radial-gradient(ellipse,#8e77564f 0 17%,transparent 23%) 7px 5px/13px 7px,
+    repeating-linear-gradient(173deg,#cfbd9c 0 4px,#ded0b2 6px 9px,#cbb896 13px 15px);
+}
+.ground-swatch.terrazzo{
+  background:
+    conic-gradient(from 37deg at 43% 46%,transparent 0 30%,#667a6d 31% 69%,transparent 70%) 0 0/19px 17px,
+    conic-gradient(from 26deg at 45% 45%,transparent 0 31%,#a6775a 32% 65%,transparent 66%) 9px 8px/27px 23px,
+    conic-gradient(from 62deg at 39% 39%,transparent 0 32%,#424d48 33% 61%,transparent 62%) 3px 12px/23px 29px,
+    #d9d1bc;
+}
+.ground-swatch.hexTile{
+  background:
+    linear-gradient(30deg,#84908d 12%,transparent 12.5%,transparent 87%,#84908d 87.5%,#84908d),
+    linear-gradient(150deg,#84908d 12%,transparent 12.5%,transparent 87%,#84908d 87.5%,#84908d),
+    linear-gradient(30deg,#84908d 12%,transparent 12.5%,transparent 87%,#84908d 87.5%,#84908d),
+    linear-gradient(150deg,#84908d 12%,transparent 12.5%,transparent 87%,#84908d 87.5%,#84908d),
+    linear-gradient(60deg,#84908d 25%,transparent 25.5%,transparent 75%,#84908d 75.5%,#84908d),
+    linear-gradient(60deg,#84908d 25%,transparent 25.5%,transparent 75%,#84908d 75.5%,#84908d),#35424a;
+  background-size:28px 49px;
+  background-position:0 0,0 0,14px 24.5px,14px 24.5px,0 0,14px 24.5px;
+}
+.ground-swatch.earth{
+  background:
+    radial-gradient(ellipse,#b0a58a 0 10%,transparent 17%) 4px 2px/23px 19px,
+    radial-gradient(ellipse,#58432d55 0 17%,transparent 52%) 0 0/9px 11px,
+    linear-gradient(120deg,#725438,#9d7b52 44%,#785936 77%,#aa8960);
+}
+
+/* The light floor fills the viewport, including the area behind its HUD. */
+.stage:is([data-ground=travertine],[data-ground=terrazzo]) .asset-label h1{color:#27333a;text-shadow:0 1px 12px #fff5}
+.stage:is([data-ground=travertine],[data-ground=terrazzo]) :is(.asset-label p,.eyebrow,.stats,.stats span,#surface-status,.stage-bottom,#destruction-status){color:#3d4c51;text-shadow:0 1px 6px #fff5}
+.stage:is([data-ground=travertine],[data-ground=terrazzo]) .live-dot{background:#42665c}
+.stage:is([data-ground=slate],[data-ground=hexTile],[data-ground=earth]) .asset-label h1{color:#edf1f2;text-shadow:0 1px 9px #0a111bb3}
+.stage:is([data-ground=slate],[data-ground=hexTile],[data-ground=earth]) :is(.asset-label p,.eyebrow,.stats,.stats span,#surface-status,.stage-bottom,#destruction-status){color:#c1cbd0;text-shadow:0 1px 5px #071119cc}

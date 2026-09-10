@@ -20,6 +20,12 @@ The first gallery load keeps one previous-workspace backup for the current page 
 
 When nothing is selected, the inspector retains a recipe for the next object you add. Shape choices always add new instances in Scene mode. To change the finish or proportions of an existing instance, select it and use its parameter controls.
 
+## Undo and Redo
+
+Use **Undo** and **Redo** at the top of the Scene edit panel. The status line names the next edit to undo. The editor keeps the latest 50 object edits, including adding, duplicating, deleting, renaming, numeric transforms, gizmo drags, geometry, and material changes. A continuous gizmo drag or parameter adjustment counts as one edit.
+
+History stays available when switching between Object and Scene. A new edit after Undo clears Redo. Loading a version 6 workspace file or choosing a Gallery example begins a new history. Importing an older object-only recipe keeps the existing Scene and its history. Camera movement, selection, snapping, display options, ground, and lighting are outside object history. History is temporary and is not saved in recipe files.
+
 ## Tools and display
 
 | Control | Behavior |
@@ -32,6 +38,8 @@ When nothing is selected, the inspector retains a recipe for the next object you
 | Snap | Quantize gizmo movement, rotation, and scale to the configured steps |
 | Frame selection / F | Fit the selected instance to the viewport |
 | Frame all | Fit all placed objects to the viewport |
+| Undo / Ctrl or Cmd + Z | Restore the previous object edit |
+| Redo / Shift + Ctrl or Cmd + Z, or Ctrl or Cmd + Y | Reapply an undone edit |
 | Duplicate / Ctrl or Cmd + D | Copy the selected instance |
 | Delete / Delete or Backspace | Remove the selected instance |
 | Grid | Show floor lines spaced one world unit apart |
