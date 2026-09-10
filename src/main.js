@@ -82,6 +82,8 @@ renderer.domElement.setAttribute('aria-label','Interactive 3D procedural asset p
 const camera=new THREE.OrthographicCamera(-5,5,4,-4,.1,100);
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;controls.dampingFactor=.08;
+const turntableSpeed=.24;
+controls.autoRotateSpeed=turntableSpeed*60/(Math.PI*2);
 controls.maxPolarAngle=Math.PI*.49;controls.minPolarAngle=Math.PI*.08;
 controls.minZoom=.45;controls.maxZoom=3;controls.enablePan=true;
 const hemi=new THREE.HemisphereLight('#c5d7ef','#353440',.85);scene.add(hemi);
@@ -349,7 +351,6 @@ async function setFractureEnabled(enabled){
   if(!enabled){audio.stop();fractureController?.setEnabled(false);syncDestruction();return;}
   if(viewMode!=='single')setViewMode('single');
   ensurePathFractureBudget();
-  rotation=false;document.querySelector('#rotate').checked=false;
   syncDestruction();
   try{
     const controller=await ensureFracture();
@@ -389,10 +390,11 @@ function applyLighting(){
   scene.background.set(p.bg);scene.fog.color.set(p.bg);ground.update({studioColor:p.bg});
 }
 function frameAsset(){
-  if(isPath()){assembly.rotation.y=0;camera.position.set(7,8,9);controls.target.set(0,0,0);fitPathCamera();return;}
-  assembly.rotation.y=0;frameSize=viewMode==='lineup'?7.6:5.4;
+  if(!fractureRequested)assembly.rotation.y=0;
+  if(isPath()){camera.position.set(7,8,9);controls.target.set(0,0,0);fitPathCamera();return;}
+  frameSize=viewMode==='lineup'?7.6:5.4;
   camera.position.set(...(viewMode==='lineup'?[2.5,4.5,14]:[7,5.1,8]));camera.zoom=1;
-  controls.target.set(0,viewMode==='lineup'?.85:1.35,0);controls.update();resize();
+  controls.target.set(0,viewMode==='lineup'?.85:1.35,0);controls.update(0);resize();
 }
 function fitPathCamera(){
   if(!assets.length)return;
@@ -403,7 +405,7 @@ function fitPathCamera(){
   }
   const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
   const direction=camera.position.clone().sub(controls.target).normalize(),distance=Math.max(12,size.length()*1.8);
-  controls.target.copy(center);camera.position.copy(center).addScaledVector(direction,distance);camera.zoom=1;controls.update();camera.updateMatrixWorld();
+  controls.target.copy(center);camera.position.copy(center).addScaledVector(direction,distance);camera.zoom=1;controls.update(0);camera.updateMatrixWorld();
   const projected=new THREE.Box3();
   for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z])projected.expandByPoint(new THREE.Vector3(x,y,z).applyMatrix4(camera.matrixWorldInverse));
   const extent=projected.getSize(new THREE.Vector3()),aspect=Math.max(.2,stage.clientWidth/stage.clientHeight);
@@ -448,7 +450,7 @@ document.querySelector('#seed').addEventListener('change',event=>{state.seed=Mat
 document.querySelector('#new-seed').addEventListener('click',()=>{state.seed=1+crypto.getRandomValues(new Uint32Array(1))[0]%999999;selectedLook='';generate();});
 document.querySelector('#lighting').addEventListener('change',event=>{state.lighting=event.target.value;selectedLook='';applyLighting();syncInputs();});
 document.querySelector('#wireframe').addEventListener('change',event=>{for(const mat of allMaterials())mat.wireframe=event.target.checked;});
-document.querySelector('#rotate').addEventListener('change',event=>{rotation=event.target.checked;if(rotation&&fractureRequested){setFractureEnabled(false);}});
+document.querySelector('#rotate').addEventListener('change',event=>{rotation=event.target.checked;});
 document.querySelector('#frame').addEventListener('click',frameAsset);
 document.querySelector('#help-dialog').addEventListener('click',event=>{if(event.target===event.currentTarget)event.currentTarget.close();});
 function syncViewButtons(){
@@ -539,10 +541,17 @@ async function readRecipe(file){if(!file)return;try{await loadRecipe(JSON.parse(
 document.addEventListener('dragover',event=>event.preventDefault());document.addEventListener('drop',event=>{event.preventDefault();readRecipe(event.dataTransfer.files[0]);});
 document.querySelector('#load-recipe').addEventListener('click',()=>document.querySelector('#recipe-file').click());
 document.querySelector('#recipe-file').addEventListener('change',event=>{readRecipe(event.target.files[0]);event.target.value='';});
+// Rapier stores bodies in world coordinates. Orbit the inspection camera during
+// destruction, and keep the hidden source at the orientation cloned by physics.
+function stepPreview(delta){
+  controls.autoRotate=rotation&&fractureRequested;
+  if(rotation&&!fractureRequested)assembly.rotation.y+=delta*turntableSpeed;
+  fractureController?.step(delta);ground.step(delta);controls.update(delta);
+}
 let lastFrame=performance.now(),fpsStart=lastFrame,frames=0;
 renderer.setAnimationLoop(now=>{
-  const delta=Math.min((now-lastFrame)/1000,.05);lastFrame=now;if(rotation)assembly.rotation.y+=delta*.24;
-  fractureController?.step(delta);ground.step(delta);controls.update();renderer.render(scene,camera);frames++;
+  const delta=Math.min((now-lastFrame)/1000,.05);lastFrame=now;
+  stepPreview(delta);renderer.render(scene,camera);frames++;
   if(now-fpsStart>700){document.querySelector('#fps').textContent=`${Math.round(frames*1000/(now-fpsStart))} FPS`;frames=0;fpsStart=now;}
 });
 fracturePanel=createFracturePanel(document.querySelector('#fracture-controls'),{onOptions:options=>{fractureOptions=sanitizeFractureOptions(options);fractureController?.update(fractureOptions);},onAction:handleFractureAction});
@@ -571,17 +580,18 @@ const cleanupTooltips=setupParameterTooltips();
 void audio.load().catch(()=>syncAudio());
 window.addEventListener('pagehide',()=>audio.stop());
 if(import.meta.hot)import.meta.hot.dispose(()=>{audio.dispose();menus.destroy();objectLibrary.destroy();latheEditor.destroy();pathEditor.destroy();cleanupTooltips();});
-window.rockLab={state,innerState,partStates,partMaterials,recipe,loadRecipe,generate,renderer,scene,camera,material,innerMaterial,ground,audio,setFractureEnabled,get fracture(){return fractureController;},getStats:()=>({triangles:Number(document.querySelector('#triangles').textContent.replaceAll(',','')),generationMs:lastGeneration,generationCount,drawCalls:renderer.info.render.calls,geometries:renderer.info.memory.geometries,programs:renderer.info.programs?.length,viewMode,path:assets[0]?.userData.path,ground:ground.getStats(),audio:audio.getState(),fracture:fractureController?.getStats()??{enabled:false}}),ready:true};
+window.rockLab={state,innerState,partStates,partMaterials,recipe,loadRecipe,generate,renderer,scene,camera,material,innerMaterial,ground,audio,setFractureEnabled,get fracture(){return fractureController;},getStats:()=>({triangles:Number(document.querySelector('#triangles').textContent.replaceAll(',','')),generationMs:lastGeneration,generationCount,drawCalls:renderer.info.render.calls,geometries:renderer.info.memory.geometries,programs:renderer.info.programs?.length,viewMode,turntable:rotation,turntableMode:fractureRequested?'camera':'asset',path:assets[0]?.userData.path,ground:ground.getStats(),audio:audio.getState(),fracture:fractureController?.getStats()??{enabled:false}}),ready:true};
 
 window.render_game_to_text=()=>JSON.stringify({
   coordinates:'Y up; floor y=0; x right and z depth in world space',
   shape:state.shape,seed:state.seed,outer:state.surface,inner:innerState.surface,ground:state.ground,
   path:isPath()?{...assets[0]?.userData.path,points:state.pathPoints}:undefined,
   parts:shapes[effectiveShape()].kind==='composite'?Object.fromEntries(Object.entries(partStates).map(([slot,pair])=>[slot,{outer:pair.outer.surface,inner:pair.inner.surface}])):undefined,
+  turntable:{enabled:rotation,mode:fractureRequested?'camera':'asset'},
   destruction:fractureController?.getStats()??{enabled:false},
   audio:audio.getState(),
   pieces:fractureController?.getMeshes().slice(0,48).map(mesh=>({position:mesh.getWorldPosition(new THREE.Vector3()).toArray().map(n=>+n.toFixed(3)),generation:mesh.userData.generation??0}))??[],
 });
-window.advanceTime=ms=>{const steps=Math.max(1,Math.ceil(ms/(1000/60)));for(let i=0;i<steps;i++){const dt=Math.min(ms/steps/1000,1/60);fractureController?.step(dt);ground.step(dt);}controls.update();renderer.render(scene,camera);};
+window.advanceTime=ms=>{const steps=Math.max(1,Math.ceil(ms/(1000/60)));for(let i=0;i<steps;i++){const dt=Math.min(ms/steps/1000,1/60);stepPreview(dt);}renderer.render(scene,camera);};
 
 if(new URLSearchParams(location.search).get('fracture')==='1'){setInspector('fracture');setFractureEnabled(true);}

@@ -2,6 +2,12 @@
 
 Checked September 9, 2026.
 
+## Turntable during fracture
+
+- Turntable and destruction can remain enabled together. The preview orbits its camera during fracture, leaving the source orientation and Rapier bodies unchanged. Normal asset turntable behavior resumes when destruction is disabled. Framing and resetting no longer alter the hidden source orientation during an active fracture preview.
+- `npm run qa:turntable` passes eight frozen-source browser groups: both toggle orders, exact paused-body stability while the camera moves, a real pointer tap producing fragments during rotation, resumed debris motion with continued camera rotation, reset, framing, source/clone world-position agreement, and menu/debug state. No browser errors or warnings were recorded.
+- The standard web-game client enabled Turntable through the real checkbox while fracture was active; the inspected screenshot and text state confirm camera turntable, active destruction, four intact pieces, and zero fracture failures. Menu QA, all 125 parameter-label tooltips, production build, and public-asset exclusions pass.
+
 ## Terrain and spline paths
 
 - Added 16 terrain forms and five path styles for 79 total objects; the existing 25-material catalog is unchanged. Path scatter offers all 74 non-path source objects. Recipes now use version 5 and accept versions 1–5.

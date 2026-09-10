@@ -79,7 +79,7 @@ export const PARAMETER_HELP = Object.freeze({
   asphaltRippleStrength: 'Adds animated ripple relief in wet asphalt patches. Zero removes ripples; higher values make them stronger. Wetness and Normal strength control their visibility.',
   asphaltRippleSpeed: 'Controls how quickly asphalt puddle ripples move. Zero freezes them; higher values animate them faster. Increase Puddle ripples to make their movement visible.',
   lighting: 'Chooses the light colors and directions used to inspect the asset. Alpine is cool with a warm key light, Soft studio is gentler, and Warm sunset emphasizes amber lighting.',
-  rotate: 'Automatically turns the asset for inspection. Turn it off to hold the current angle; you can still drag the preview to orbit the camera.',
+  rotate: 'Automatically turns the asset for inspection. During fracture, the view circles the asset while debris physics stays in place. It also works with paused debris. Turn it off to stop the automatic rotation; dragging still orbits the camera.',
   wireframe: 'Shows the mesh’s triangle edges for inspecting geometry density. Turn it off to return to the filled material view.',
   'sfx-volume': 'Sets the loudness of break, debris-impact, and restore sounds. Zero is silent; higher values are louder. The Sound toggle can mute playback independently.',
   'sfx-family': 'Chooses the break and impact sound set. Match asset follows the current surface and shape; Rock, Concrete, Glass, and Wood override that automatic choice.',

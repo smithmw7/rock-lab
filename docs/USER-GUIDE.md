@@ -66,7 +66,7 @@ Selecting a material restores its authored base roughness. **Surface roughness**
 
 ## Tap destruction with three-pinata
 
-Open **Fracture** and enable **Tap destruction**. Tap or click a part to fracture it, then tap a fragment to break it again. Dragging continues to orbit the camera. **Break asset** fractures the assembly, **Pause debris** freezes the simulation for material inspection, and **Reset destruction** restores the intact source. Selecting a different shape or seed creates a fresh test. Variations and turntable return to asset inspection.
+Open **Fracture** and enable **Tap destruction**. Tap or click a part to fracture it, then tap a fragment to break it again. Dragging continues to orbit the camera. **Break asset** fractures the assembly, **Pause debris** freezes the simulation for material inspection, and **Reset destruction** restores the intact source. Selecting a different shape or seed creates a fresh test. Turntable stays available during destruction, circling the view around intact pieces or moving and paused debris. Turning it off leaves destruction enabled. Variations returns to asset inspection.
 
 The **Material** inspector contains **Outer** and **Inner** tabs. Each has independent material style, tint/color blend, roughness, snow, noise, normal relief, optical properties, and diagnostic channels. Outer covers the original skin; Inner covers newly exposed cut faces. Inner UV scale and offset affect the procedural cut-face pattern on subsequent fractures.
 

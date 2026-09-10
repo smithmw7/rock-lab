@@ -20,7 +20,8 @@
     "qa:workshop": "node scripts/qa-workshop.mjs",
     "verify:terrain": "node scripts/verify-terrain.mjs",
     "verify:paths": "node scripts/verify-paths.mjs",
-    "qa:paths": "node scripts/qa-paths.mjs"
+    "qa:paths": "node scripts/qa-paths.mjs",
+    "qa:turntable": "node scripts/qa-turntable.mjs"
   },
   "dependencies": {
     "@dgreenheck/three-pinata": "2.0.1",
