@@ -5,6 +5,7 @@ import { WORKSHOP_SURFACES } from './workshop-materials.js';
 import { WORKSHOP_GROUPS, WORKSHOP_CATALOG } from './workshop-geometry.js';
 import { TERRAIN_GROUPS, TERRAIN_CATALOG } from './terrain-geometry.js';
 import { PATH_GROUPS, PATH_CATALOG } from './path-geometry.js';
+import { WOOD_GROUPS, WOOD_CATALOG } from './wood-geometry.js';
 
 export const shapeGroups = [
   {id:'natural',label:'Natural',description:'Fractured forms for landscapes and encounter spaces.',shapes:['boulder','stack','slab','spire','crystals','arch']},
@@ -12,11 +13,13 @@ export const shapeGroups = [
   {id:'structures',label:'Structures',description:'Assembled pieces for ruins, landmarks, and level kits.',shapes:['wall','monolith','columns','stairs','ruins','cairn']},
   {id:'architecture',label:'Architecture',description:'Open arches, crossings, columns, and architectural supports.',shapes:['roundArch','pointedArch','flatArch','bridge','roundColumn','squareColumn','brokenColumn','plinth','doorway']},
   {id:'furniture',label:'Furniture',description:'Simple assembled props with recognizable seats, tops, and supports.',shapes:['bench','table','chair','stool']},
+  ...WOOD_GROUPS,
   ...WORKSHOP_GROUPS,
   ...TERRAIN_GROUPS,
   ...PATH_GROUPS,
 ];
 export const shapes = {
+  ...WOOD_CATALOG,
   ...WORKSHOP_CATALOG,
   ...TERRAIN_CATALOG,
   ...PATH_CATALOG,

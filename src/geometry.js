@@ -5,6 +5,7 @@ import { createKitParts, KIT_GROUPS, KIT_SHAPES } from './kit-geometry.js';
 import { createWorkshopParts, sanitizeWorkshopOptions, WORKSHOP_GROUPS, WORKSHOP_SHAPES, WORKSHOP_CATALOG } from './workshop-geometry.js';
 import { createTerrainParts, TERRAIN_GROUPS, TERRAIN_SHAPES, TERRAIN_CATALOG } from './terrain-geometry.js';
 import { buildPathAsset, PATH_GROUPS, PATH_SHAPES, PATH_CATALOG } from './path-geometry.js';
+import { createWoodParts, setStockGrainCoordinates, stockAxisMatrix, WOOD_GROUPS, WOOD_SHAPES, WOOD_CATALOG } from './wood-geometry.js';
 
 // All surface detail here is real geometry. Faces remain coherent polygons until
 // the final upload, so triangulation never becomes the visible surface language.
@@ -18,6 +19,7 @@ export const SHAPE_GROUPS = [
   { id: 'structures', label: 'Structures', shapes: ['wall', 'monolith', 'columns', 'stairs', 'ruins', 'cairn'] },
   { id: 'architecture', label: 'Architecture', shapes: KIT_GROUPS.architecture },
   { id: 'furniture', label: 'Furniture', shapes: KIT_GROUPS.furniture },
+  ...WOOD_GROUPS,
   ...WORKSHOP_GROUPS,
   ...TERRAIN_GROUPS,
   ...PATH_GROUPS,
@@ -29,6 +31,7 @@ export const SHAPE_LABELS = {
   smallBlock: 'Small block', mediumBlock: 'Medium block', largeBlock: 'Large block', lowRamp: 'Low ramp', steepRamp: 'Steep ramp', cornerRamp: 'Corner ramp', platform: 'Platform',
   roundArch: 'Round arch', pointedArch: 'Pointed arch', flatArch: 'Flat arch', bridge: 'Bridge', roundColumn: 'Round column', squareColumn: 'Square column', brokenColumn: 'Broken column', plinth: 'Plinth', doorway: 'Doorway',
   bench: 'Bench', table: 'Table', chair: 'Chair', stool: 'Stool',
+  ...Object.fromEntries(Object.entries(WOOD_CATALOG).map(([id, entry]) => [id, entry.label])),
   ...Object.fromEntries(Object.entries(WORKSHOP_CATALOG).map(([id, entry]) => [id, entry.label])),
   ...Object.fromEntries(Object.entries(TERRAIN_CATALOG).map(([id, entry]) => [id, entry.label])),
   ...Object.fromEntries(Object.entries(PATH_CATALOG).map(([id, entry]) => [id, entry.label])),
@@ -718,9 +721,14 @@ function buildKitAsset(options, material) {
     if (part.grounded) {
       const minimum = Math.min(...faces.flatMap(face => face.vertices.map(p => p.y)));
       faces = faces.map(face => ({ ...face, vertices: face.vertices.map(p => p.clone().setY(p.y - minimum)) }));
+      transform.premultiply(new THREE.Matrix4().makeTranslation(0, -minimum, 0));
     }
     faces = closedKitHull(faces);
     const solid = solidData(faces), geometry = toGeometry(faces);
+    if (furniture) {
+      const axis = part.kind === 'cylinder' ? 1 : part.size.indexOf(Math.max(...part.size));
+      setStockGrainCoordinates(geometry, stockAxisMatrix(axis).multiply(transform.clone().invert()), group.children.length * .731);
+    }
     geometry.userData.displacementWeight = furniture ? .22 : .4;
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = part.name; mesh.castShadow = true; mesh.receiveShadow = true;
@@ -796,20 +804,29 @@ function buildTerrainAsset(options, material) {
   return finalizeAsset(group, options, { grounded, links, unsupported, settledChunks: [], jointTolerance: 0, method: 'convex-volume-intersection' });
 }
 
-function buildWorkshopAsset(options, material) {
+function buildWorkshopAsset(options, material, wood = false) {
   const group = new THREE.Group();
   group.name = `Procedural ${SHAPE_LABELS[options.shape]} ${options.seed}`;
-  for (const part of createWorkshopParts(options.shape, options)) {
+  for (const part of wood ? createWoodParts(options.shape, options) : createWorkshopParts(options.shape, options)) {
     const metadata = { ...part.geometry.userData };
     // A vessel's floor and rim need crease normals. Averaging all adjacent
     // faces there can point a smooth normal inside a sharply concave neck.
     const creased = toCreasedNormals(part.geometry, .7);
     if (creased !== part.geometry) part.geometry.dispose();
     const geometry = addSurfaceAttributes(creased, false);
+    if (options.shape === 'splitLog') {
+      // The sawn longitudinal plane is exposed wood; the half-round shell
+      // remains bark. Store a face mask so material edits and recuts retain it.
+      const stock = geometry.attributes.aWoodPosition, mask = new Float32Array(stock.count).fill(1);
+      for (let i = 0; i < stock.count; i += 3) {
+        if ([0, 1, 2].every(corner => Math.abs(stock.getZ(i + corner)) < 0.0001)) mask.fill(0, i, i + 3);
+      }
+      geometry.setAttribute('aWoodBarkMask', new THREE.BufferAttribute(mask, 1));
+    }
     // ExtrudeGeometry distinguishes caps and sides for generic multimaterials.
     // Both are exterior here; Pinata reserves material group 1 for fresh cuts.
     geometry.clearGroups();
-    Object.assign(geometry.userData, metadata, { displacementWeight: .035, smoothSurface: false });
+    Object.assign(geometry.userData, metadata, { displacementWeight: wood ? .16 : .035, smoothSurface: false });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = part.name;
     mesh.userData.materialSlot = part.materialSlot;
@@ -855,6 +872,11 @@ function buildDesignedAsset(options, material) {
     else geometry = toGeometry(designedFaces(kind, rng, local));
     const matrix = new THREE.Matrix4().compose(new THREE.Vector3(...position), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)), new THREE.Vector3(...size).multiplyScalar(0.5));
     geometry.applyMatrix4(matrix); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+    // Stock uses its own length axis before assembly rotation. A rectangular
+    // brick used as a board must show long grain along its length, not its depth.
+    const grainTransform = new THREE.Matrix4().compose(new THREE.Vector3(...position), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)), new THREE.Vector3(1, 1, 1));
+    const grainAxis = kind === 'cylinder' || kind === 'sphere' ? 1 : size.indexOf(Math.max(...size));
+    setStockGrainCoordinates(geometry, stockAxisMatrix(grainAxis).multiply(grainTransform.invert()), group.children.length * .731);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `${SHAPE_LABELS[kind] || 'Stone'} ${group.children.length + 1}`;
     mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh);
@@ -952,7 +974,7 @@ function finalizeAsset(group, options, connectivity) {
   group.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(group);
   const dimensions = bounds.getSize(new THREE.Vector3()), center = bounds.getCenter(new THREE.Vector3());
-  const scale = Math.min(KIT_SHAPES.has(options.shape) || WORKSHOP_SHAPES.has(options.shape) || TERRAIN_SHAPES.has(options.shape) ? 1 : Infinity, 3.6 / dimensions.x, 3.4 / dimensions.y, 3.2 / dimensions.z);
+  const scale = Math.min(KIT_SHAPES.has(options.shape) || WORKSHOP_SHAPES.has(options.shape) || TERRAIN_SHAPES.has(options.shape) || WOOD_SHAPES.has(options.shape) ? 1 : Infinity, 3.6 / dimensions.x, 3.4 / dimensions.y, 3.2 / dimensions.z);
   for (const mesh of group.children) {
     mesh.position.x = (mesh.position.x - center.x) * scale;
     mesh.position.y = (mesh.position.y - bounds.min.y) * scale;
@@ -986,6 +1008,7 @@ export function buildAsset(input = {}, material) {
     noiseSeed: Number.isFinite(Number(input.noiseSeed)) ? Number(input.noiseSeed) : undefined,
   };
   if (PATH_SHAPES.has(options.shape)) return buildPathAsset({ ...input, ...options }, material, buildAsset);
+  if (WOOD_SHAPES.has(options.shape)) return buildWorkshopAsset(options, material, true);
   if (WORKSHOP_SHAPES.has(options.shape)) return buildWorkshopAsset({ ...options, ...sanitizeWorkshopOptions(input) }, material);
   if (TERRAIN_SHAPES.has(options.shape)) return buildTerrainAsset(options, material);
   if (KIT_SHAPES.has(options.shape)) return buildKitAsset(options, material);

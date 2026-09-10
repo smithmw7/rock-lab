@@ -210,6 +210,13 @@ export function createWorkshopParts(shape, input = {}) {
     const count = geometry.attributes.position.count, grain = [];
     for (let i = 0; i < count; i++) grain.push(geometry.attributes.position.getX(i), geometry.attributes.position.getY(i), geometry.attributes.position.getZ(i), 1);
     geometry.setAttribute('aRockPosition', new THREE.Float32BufferAttribute(grain, 4));
+    // Expand only the wood coordinates on small grips. Other finishes retain
+    // their existing mapping when the user changes a handle's material.
+    if (materialSlot === 'handle') {
+      const wood = [...grain];
+      for (let i = 0; i < count; i++) { wood[i * 4] *= 3; wood[i * 4 + 2] *= 3; }
+      geometry.setAttribute('aWoodPosition', new THREE.Float32BufferAttribute(wood, 4));
+    }
     const transform = new THREE.Matrix4().compose(new THREE.Vector3(...position), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)), new THREE.Vector3(1, 1, 1));
     geometry.applyMatrix4(transform);
     // Small coherent manufacturing wear uses the same world-space field at

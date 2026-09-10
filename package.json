@@ -35,7 +35,9 @@
     "qa:scene-history": "node scripts/qa-scene-history.mjs",
     "verify:global-settling": "node scripts/verify-global-settling.mjs",
     "verify:fracture-wake": "node scripts/verify-fracture-wake.mjs",
-    "qa:fracture-realtime": "node scripts/qa-fracture-realtime.mjs"
+    "qa:fracture-realtime": "node scripts/qa-fracture-realtime.mjs",
+    "verify:wood": "node scripts/verify-wood-geometry.mjs",
+    "qa:wood": "node scripts/qa-wood.mjs"
   },
   "dependencies": {
     "@dgreenheck/three-pinata": "2.0.1",

@@ -15,7 +15,7 @@ import { setupMenus } from './menu.js';
 import { setupParameterTooltips } from './tooltips.js';
 import { createObjectLibrary } from './library.js';
 import { WORKSHOP_DEFAULTS, WORKSHOP_RANGES, WORKSHOP_SHAPES, sanitizeWorkshopOptions } from './workshop-geometry.js';
-import { WORKSHOP_MATERIAL_DEFAULTS, WORKSHOP_MATERIAL_RANGES } from './workshop-materials.js';
+import { WORKSHOP_MATERIAL_DEFAULTS, WORKSHOP_MATERIAL_RANGES, WORKSHOP_MATERIAL_FIELDS, WOOD_PATTERNS } from './workshop-materials.js';
 import { createLatheEditor } from './lathe-editor.js';
 import { PATH_DEFAULTS, PATH_RANGES, PATH_SHAPES, sanitizePathOptions } from './path-geometry.js';
 import { createPathEditor } from './path-editor.js';
@@ -127,18 +127,31 @@ room.dispose();pmrem.dispose();
 const ground=createGround(renderer,scene,state);scene.add(ground.group);
 const assembly=new THREE.Group();scene.add(assembly);
 const material=createRockMaterial(state);
-const innerMaterial=createRockMaterial({...innerState,fractureInterior:true});
-const partMaterials=Object.fromEntries(Object.entries(partStates).map(([slot,pair])=>[slot,{outer:createRockMaterial(pair.outer),inner:createRockMaterial({...pair.inner,fractureInterior:true})}]));
-const allMaterials=()=>[material,innerMaterial,...Object.values(partMaterials).flatMap(pair=>[pair.outer,pair.inner])];
+const innerMaterial=createRockMaterial({...innerState,seed:state.seed,fractureInterior:true});
+const partMaterials=Object.fromEntries(Object.entries(partStates).map(([slot,pair])=>[slot,{outer:createRockMaterial({...pair.outer,seed:state.seed}),inner:createRockMaterial({...pair.inner,seed:state.seed,fractureInterior:true})}]));
+const primaryMaterialPairs={primary:{outer:material,inner:innerMaterial},...partMaterials};
+const variationMaterials=new Map(),meshMaterialPairs=new WeakMap();
+const flattenMaterialPairs=pairs=>Object.values(pairs).flatMap(pair=>[pair.outer,pair.inner]);
+const allMaterials=()=>[...flattenMaterialPairs(primaryMaterialPairs),...[...variationMaterials.values()].flatMap(flattenMaterialPairs)];
+function updateMaterialPairs(pairs,seed){
+  const options={primary:{outer:state,inner:innerState},...partStates};
+  for(const [slot,pair] of Object.entries(pairs))for(const side of ['outer','inner'])updateRockMaterial(pair[side],{...options[slot][side],seed,fractureInterior:side==='inner'});
+}
+function createVariationMaterials(seed){
+  const options={primary:{outer:state,inner:innerState},...partStates};
+  const pairs=Object.fromEntries(Object.entries(options).map(([slot,pair])=>[slot,Object.fromEntries(['outer','inner'].map(side=>{
+    const mat=createRockMaterial({...pair[side],seed,fractureInterior:side==='inner'});mat.wireframe=material.wireframe;return[side,mat];
+  }))]));
+  variationMaterials.set(seed,pairs);return pairs;
+}
 function updateMaterials(){
   if(inScene()){updateSceneMaterials();return;}
-  updateRockMaterial(material,state);updateRockMaterial(innerMaterial,{...innerState,fractureInterior:true});
-  for(const [slot,pair] of Object.entries(partMaterials)){
-    updateRockMaterial(pair.outer,partStates[slot].outer);updateRockMaterial(pair.inner,{...partStates[slot].inner,fractureInterior:true});
-  }
+  updateMaterialPairs(primaryMaterialPairs,state.seed);
+  for(const [seed,pairs] of variationMaterials)updateMaterialPairs(pairs,seed);
 }
 function materialsForMesh(mesh){
-  const pair=partMaterials[mesh.userData.materialSlot];
+  const pairs=meshMaterialPairs.get(mesh)??primaryMaterialPairs;
+  const pair=pairs[mesh.userData.materialSlot]??pairs.primary;
   return pair?{outerMaterial:pair.outer,innerMaterial:pair.inner}:{outerMaterial:material,innerMaterial};
 }
 function applySurface(target,id){
@@ -183,7 +196,7 @@ const specs=[
   {key:'groundWetness',label:'Wetness',parent:'ground-controls',kind:'ground'},
   {key:'groundScale',label:'Ground texture scale',parent:'ground-controls',kind:'ground',min:.3,max:4,step:.1,format:'scale'},
   ...Object.entries({handleLength:'Handle length',headScale:'Head / blade size',wallThickness:'Wall thickness',latheHeight:'Height',latheWidth:'Width',latheBelly:'Belly width',latheNeck:'Neck width',latheLip:'Lip width',latheSegments:'Radial segments',profileSmoothness:'Spline smoothness'}).map(([key,label])=>({key,label,parent:['handleLength','headScale'].includes(key)?'composite-controls':'lathe-controls',kind:'geometry',min:WORKSHOP_RANGES[key][0],max:WORKSHOP_RANGES[key][1],step:key==='latheSegments'?1:.01,format:key==='latheSegments'?'integer':key==='wallThickness'?'units':key==='profileSmoothness'?undefined:'preciseScale'})),
-  ...Object.entries({metalBrushing:'Brushing',metalWear:'Metal wear',woodGrainScale:'Grain scale',woodGrainStrength:'Grain strength',woodKnots:'Knots',woodWarmth:'Wood warmth',ceramicGlaze:'Glaze coat',ceramicSpeckle:'Clay speckles'}).map(([key,label])=>({key,label,parent:key.startsWith('metal')?'metal-controls':key.startsWith('wood')?'wood-controls':'ceramic-controls',kind:'material',min:WORKSHOP_MATERIAL_RANGES[key][0],max:WORKSHOP_MATERIAL_RANGES[key][1],step:.01,format:key==='woodGrainScale'?'preciseScale':undefined})),
+  ...Object.entries({metalBrushing:'Brushing',metalWear:'Metal wear',woodGrainScale:'Grain scale',woodGrainStrength:'Grain strength',woodVariation:'Grain variation',woodKnots:'Knots',woodSpiral:'Spiral curl',woodCracks:'Heavy cracks',woodBark:'Bark coverage',woodRelief:'Raised grain',woodWarmth:'Wood warmth',ceramicGlaze:'Glaze coat',ceramicSpeckle:'Clay speckles'}).map(([key,label])=>({key,label,parent:key.startsWith('metal')?'metal-controls':key.startsWith('wood')?'wood-controls':'ceramic-controls',kind:'material',min:WORKSHOP_MATERIAL_RANGES[key][0],max:WORKSHOP_MATERIAL_RANGES[key][1],step:.01,format:key==='woodGrainScale'?'preciseScale':undefined})),
 ];
 for(const spec of specs){
   const el=document.createElement('div');el.className='slider-control';
@@ -197,6 +210,15 @@ for(const spec of specs){
     syncInputs();
   });
 }
+for(const [id,pattern] of Object.entries(WOOD_PATTERNS)){
+  const option=document.createElement('option');option.value=id;option.textContent=pattern.label;document.querySelector('#woodPattern').append(option);
+}
+document.querySelector('#woodPattern').addEventListener('change',event=>{
+  const pattern=WOOD_PATTERNS[event.target.value];if(!pattern)return;
+  const sceneEdit=inScene();if(sceneEdit)sceneEditor.beginEdit?.(`Apply ${pattern.label.toLowerCase()}`);
+  try{Object.assign(currentMaterialState(),pattern.options);selectedLook='';updateMaterials();syncInputs();}
+  finally{if(sceneEdit)sceneEditor.endEdit?.();}
+});
 const objectLibrary=createObjectLibrary({
   root:document.querySelector('#object-library'),shapes,groups:shapeGroups,selected:state.shape,
   onSelect:id=>selectObject(id),
@@ -206,7 +228,7 @@ function selectObject(id){
   cancelAnimationFrame(pendingGenerate);pendingGenerate=0;
   const adding=inScene();loadingSceneSelection=adding;
   const changed=state.shape!==id;state.shape=id;selectedLook='';materialSlot='primary';
-  if(changed&&(WORKSHOP_SHAPES.has(id)||shapes[id].kind==='terrain'||isPath())){
+  if(changed&&(WORKSHOP_SHAPES.has(id)||['terrain','wood'].includes(shapes[id].kind)||isPath())){
     state.latheProfile=null;applyObjectSurface(id==='objectPath'?state.pathObject:id);
   }
   if(isPath()){
@@ -220,6 +242,8 @@ function applyObjectSurface(id){
   const entry=shapes[id];
   if(entry.defaultSurface){applySurface(state,entry.defaultSurface);applySurface(innerState,entry.defaultSurface);}
   else if(isPath()){applySurface(state,'stone');applySurface(innerState,'limestone');}
+  if(WOOD_PATTERNS[entry.woodPattern])Object.assign(state,WOOD_PATTERNS[entry.woodPattern].options);
+  if(id==='splitLog')state.woodBark=.6;
   if(entry.kind==='composite')for(const side of ['outer','inner']){
     applySurface(partStates.handle[side],entry.defaultHandleSurface||'oak');applySurface(partStates.trim[side],'brass');
   }
@@ -362,6 +386,7 @@ function syncInputs(){
   document.querySelector('#absorptionColor').value=currentMaterialState().absorptionColor;
   const optical=materialFamilyFor(currentMaterialState().surface)==='optical';
   for(const family of ['metal','wood','ceramic'])document.getElementById(`${family}-controls-panel`).hidden=materialFamilyFor(currentMaterialState().surface)!==family;
+  document.querySelector('#woodPattern').value=Object.entries(WOOD_PATTERNS).find(([,pattern])=>WORKSHOP_MATERIAL_FIELDS.wood.every(key=>Math.abs(currentMaterialState()[key]-pattern.options[key])<1e-6))?.[0]??'custom';
   document.querySelector('#optical-controls-panel').hidden=!optical;
   document.querySelector('#noise-section-index').textContent=optical?'04':'02';
   document.querySelector('#channel-section-index').textContent=optical?'05':'03';
@@ -517,11 +542,14 @@ function generate(resetCamera=false){
   audio.stop();
   const start=performance.now();
   for(const asset of assets){assembly.remove(asset);disposeAsset(asset);}assets=[];
+  for(const pairs of variationMaterials.values())for(const mat of flattenMaterialPairs(pairs))mat.dispose();variationMaterials.clear();
+  updateMaterials();
   if(isPath())viewMode='single';
   const count=viewMode==='lineup'?5:1;
   for(let i=0;i<count;i++){
-    const asset=buildAsset({...state,seed:variationSeed(i)},material);
-    asset.traverse(obj=>{if(obj.isMesh){obj.castShadow=true;obj.receiveShadow=true;obj.material=materialsForMesh(obj).outerMaterial;}});
+    const seed=variationSeed(i),pairs=i===0?primaryMaterialPairs:createVariationMaterials(seed);
+    const asset=buildAsset({...state,seed},pairs.primary.outer);
+    asset.traverse(obj=>{if(obj.isMesh){meshMaterialPairs.set(obj,pairs);obj.castShadow=true;obj.receiveShadow=true;obj.material=materialsForMesh(obj).outerMaterial;}});
     if(count>1){asset.scale.setScalar(.65);asset.position.set((i-2)*2.65,0,0);}assembly.add(asset);assets.push(asset);
   }
   assembly.updateMatrixWorld(true);
@@ -713,7 +741,7 @@ function buildSceneInstance(input){
   const options={primary:{outer:data.options,inner:data.innerMaterial},...data.partMaterials};
   let group;
   try{
-    for(const [slot,pair] of Object.entries(options))pairs[slot]={outer:createRockMaterial(pair.outer),inner:createRockMaterial({...pair.inner,fractureInterior:true})};
+    for(const [slot,pair] of Object.entries(options))pairs[slot]={outer:createRockMaterial({...pair.outer,seed:data.options.seed}),inner:createRockMaterial({...pair.inner,seed:data.options.seed,fractureInterior:true})};
     group=buildAsset(data.options,pairs.primary.outer);
     group.traverse(mesh=>{if(mesh.isMesh){mesh.material=(pairs[mesh.userData.materialSlot]??pairs.primary).outer;mesh.castShadow=true;mesh.receiveShadow=true;}});
     group.userData.sceneMaterials=pairs;return group;
@@ -726,8 +754,7 @@ function disposeSceneInstance(group){
 function updateSceneMaterials(){
   if(loadingSceneSelection||!sceneEditor?.getSelected())return;
   const record=sceneEditor.getSelected(),pairs=record.group.userData.sceneMaterials;
-  updateRockMaterial(pairs.primary.outer,state);updateRockMaterial(pairs.primary.inner,{...innerState,fractureInterior:true});
-  for(const slot of ['handle','trim'])for(const side of ['outer','inner'])updateRockMaterial(pairs[slot][side],{...partStates[slot][side],fractureInterior:side==='inner'});
+  updateMaterialPairs(pairs,record.recipe.options.seed);
   const saved=record.recipe;
   // A material edit must not commit a pending geometry edit before its budget check.
   for(const key of materialKeys)saved.options[key]=structuredClone(state[key]);

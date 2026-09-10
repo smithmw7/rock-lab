@@ -1,3 +1,4 @@
+import { woodUniforms, woodFunctions, woodSurface } from './wood-shader.js';
 import { Color, Float32BufferAttribute, MeshPhysicalMaterial, ShaderChunk, Vector3 } from 'three';
 import { OPTICAL_DEFAULTS, OPTICAL_PRESETS, OPTICAL_RANGES } from './optical.js';
 import { WORKSHOP_MATERIAL_DEFAULTS, WORKSHOP_MATERIAL_RANGES, WORKSHOP_SURFACES } from './workshop-materials.js';
@@ -6,7 +7,7 @@ import { WORKSHOP_MATERIAL_DEFAULTS, WORKSHOP_MATERIAL_RANGES, WORKSHOP_SURFACES
 // family additionally uses Three's native transmission/dispersion/iridescence
 // variants; ordinary slider moves reuse those programs while a 0/positive toggle
 // may select another cached native variant.
-export const rockMaterialProgramKey = 'procedural-rock-surface-v10-workshop';
+export const rockMaterialProgramKey = 'procedural-rock-surface-v11-wood';
 
 export const ROCK_SURFACES = Object.freeze([
   { key: 'stone', name: 'Alpine stone', description: 'Cool painted planes and chipped edges', defaultRoughness: 0.85 },
@@ -29,9 +30,13 @@ const vertexDeclarations = /* glsl */`
 attribute float aFaceTone;
 attribute float aBevel;
 attribute vec4 aRockPosition;
+attribute vec4 aWoodPosition;
+attribute float aWoodBarkMask;
 attribute float aRockOriginalUp;
 attribute float aRockThicknessLimit;
 varying vec3 vRockPosition;
+varying vec3 vWoodPosition;
+varying float vWoodBarkMask;
 varying vec2 vRockUV;
 varying float vRockCoverageSlope;
 varying float vRockThicknessLimit;
@@ -67,9 +72,12 @@ uniform float uWorkshopWoodGrainScale;
 uniform float uWorkshopWoodGrainStrength;
 uniform float uWorkshopWoodKnots;
 uniform float uWorkshopWoodWarmth;
+${woodUniforms}
 uniform float uWorkshopCeramicGlaze;
 uniform float uWorkshopCeramicSpeckle;
 varying vec3 vRockPosition;
+varying vec3 vWoodPosition;
+varying float vWoodBarkMask;
 varying vec2 vRockUV;
 varying float vRockCoverageSlope;
 varying float vRockThicknessLimit;
@@ -205,6 +213,7 @@ vec3 rockInternalDensity(vec3 start, vec3 direction, float depth) {
   }
   return density / 6.0 * vec3(uRockCloudiness, uRockInclusions * 2.2, uRockInternalCracks * 1.3);
 }
+${woodFunctions}
 `;
 
 const surfaceFragment = /* glsl */`
@@ -375,55 +384,7 @@ if (uRockSurface > 1.5 && uRockSurface < 2.5) {
   rockRoughnessVariation = (brushing - 0.5) * uWorkshopMetalBrushing * 0.11
     + scratches * uWorkshopMetalWear * 0.13 + rockWorkshopPatina * 0.5 + (forged - 0.5) * forge * 0.09;
 } else if (uRockSurface > 17.5 && uRockSurface < 20.5) {
-  // Continuous cylindrical growth rings run along the local Y grain axis.
-  // An object-space surface normal distinguishes cut ends from long faces;
-  // derivatives also keep this correct for baked and rotated handle parts.
-  vec3 woodP = rockTextureP * uWorkshopWoodGrainScale;
-  vec3 grainNormalRaw = cross(dFdx(rockP), dFdy(rockP));
-  vec3 grainNormal = grainNormalRaw / max(length(grainNormalRaw), 0.000001);
-  float endGrain = smoothstep(0.52, 0.89, abs(grainNormal.y));
-  vec2 growthCenter = vec2(-0.23, 0.17);
-  vec2 growthWarp = vec2(
-    rockNoise(woodP * vec3(0.75, 0.23, 0.65) + vec3(2.1)),
-    rockNoise(woodP * vec3(0.65, 0.19, 0.75) + vec3(9.3))
-  ) - 0.5;
-  float radius = length(woodP.xz - growthCenter + growthWarp * 0.32);
-  float phase = radius * 15.0 + rockNoise(woodP * vec3(3.2, 0.28, 3.2)) * 1.8;
-  float knotDark = 0.0;
-  // Two deliberately sparse elongated knots, with their grain curling into
-  // the core. A bounded loop avoids high-cost cellular searches per pixel.
-  for (int knotIndex = 0; knotIndex < 2; knotIndex++) {
-    float ki = float(knotIndex);
-    vec2 knotDelta = vec2(woodP.x - (ki * 1.33 - 0.62), (woodP.y - (ki * 2.9 - 0.75)) * 0.27);
-    float knotRadius = length(knotDelta);
-    float knotMask = (1.0 - smoothstep(0.18, 0.85, knotRadius)) * uWorkshopWoodKnots;
-    phase = mix(phase, knotRadius * 23.0 + ki * 1.7, knotMask * (1.0 - endGrain));
-    knotDark = max(knotDark, (1.0 - smoothstep(0.05, 0.21, knotRadius)) * uWorkshopWoodKnots * (1.0 - endGrain));
-  }
-  float grainAA = max(fwidth(phase), 0.002);
-  float ringWave = sin(phase) * 0.5 + 0.5;
-  float ringFade = 1.0 - smoothstep(1.0, 3.1, grainAA);
-  float darkRing = (1.0 - smoothstep(0.07, 0.24 + grainAA * 0.13, ringWave)) * ringFade;
-  float fibers = rockFilteredNoise(woodP * vec3(35.0, 0.75, 30.0) + vec3(8.4));
-  float grainAmount = uWorkshopWoodGrainStrength * clamp(uRockNoiseAmount * 2.0, 0.0, 1.0) * mix(0.35, 1.0, uRockDetail);
-  vec3 woodLight = vec3(0.57, 0.29, 0.085);
-  vec3 woodDark = vec3(0.19, 0.065, 0.016);
-  vec3 edgeWood = vec3(0.13, 0.08, 0.029);
-  if (uRockSurface > 18.5 && uRockSurface < 19.5) {
-    woodLight = vec3(0.18, 0.07, 0.022); woodDark = vec3(0.048, 0.015, 0.007); edgeWood = vec3(0.055, 0.025, 0.012);
-  } else if (uRockSurface > 19.5) {
-    woodLight = vec3(0.26, 0.23, 0.19); woodDark = vec3(0.088, 0.069, 0.050); edgeWood = vec3(0.07, 0.061, 0.040);
-  }
-  float woodTone = clamp(darkRing * 0.82 + (1.0 - ringWave) * 0.23 + knotDark * 0.7, 0.0, 1.0);
-  rockSurface = mix(woodLight, woodDark, woodTone * grainAmount);
-  rockSurface *= 1.0 + rockFace * 0.45 + (rockBroad - 0.5) * 0.12 * rockTextureDetail;
-  rockSurface *= 1.0 + (fibers - 0.5) * 0.22 * grainAmount * (1.0 - endGrain);
-  rockSurface += vRockBevel * edgeWood * (0.65 + rockLightFacing * 0.35);
-  rockSurface *= mix(vec3(0.79, 0.93, 1.12), vec3(1.13, 1.025, 0.79), uWorkshopWoodWarmth);
-  rockSurface *= mix(vec3(0.88, 0.97, 1.08), vec3(1.08, 1.0, 0.87), clamp(0.5 + uRockHue * 0.5, 0.0, 1.0));
-  rockHeightField = 0.5 + ((fibers - 0.5) * 0.33 - darkRing * 0.45 - knotDark * 0.22) * uWorkshopWoodGrainStrength;
-  rockReliefDepth = uRockSurface > 19.5 ? 0.055 : 0.031;
-  rockRoughnessVariation = (darkRing * 0.16 + (fibers - 0.5) * 0.14) * uWorkshopWoodGrainStrength;
+${woodSurface}
 } else if (uRockSurface > 20.5 && uRockSurface < 24.5) {
   // Throwing rings wrap continuously around a lathe vessel; mineral flecks
   // fade with pixel footprint. Glaze has its own native clearcoat lobe.
@@ -507,6 +468,7 @@ export function updateRockMaterial(material, options = {}) {
     uniforms.uRockEnvironment.value = surfaceEnvironmentIntensity[index];
     if (!('materialRoughness' in options)) uniforms.uRockRoughness.value = ROCK_SURFACES[index].defaultRoughness;
   }
+  if ('seed' in options) uniforms.uWoodSeed.value = finiteClamped(options.seed, uniforms.uWoodSeed.value, 1, 999999);
   if ('snow' in options) uniforms.uRockSnow.value = finiteClamped(options.snow, uniforms.uRockSnow.value);
   if ('detail' in options) uniforms.uRockDetail.value = finiteClamped(options.detail, uniforms.uRockDetail.value);
   if ('contrast' in options) uniforms.uRockContrast.value = finiteClamped(options.contrast, uniforms.uRockContrast.value);
@@ -569,9 +531,10 @@ export function createRockMaterial(options = {}) {
   // select the normal object-space path and keep imported cut meshes renderable.
   material.defaultAttributeValues = {
     color: [1, 1, 1], uv: [0, 0], aFaceTone: [0.5], aBevel: [0],
-    aRockPosition: [0, 0, 0, 0], aRockOriginalUp: [0], aRockThicknessLimit: [1000000],
+    aRockPosition: [0, 0, 0, 0], aWoodPosition: [0, 0, 0, 0], aWoodBarkMask: [1], aRockOriginalUp: [0], aRockThicknessLimit: [1000000],
   };
   material.userData.rockUniforms = {
+    uWoodSeed: { value: 18427 },
     uRockIce: { value: 0 },
     uRockSurface: { value: 0 },
     uRockSnow: { value: 0 },
@@ -595,7 +558,7 @@ export function createRockMaterial(options = {}) {
   };
   material.userData.workshopOptions = { ...WORKSHOP_MATERIAL_DEFAULTS, ...(WORKSHOP_SURFACES[options.surface]?.defaults ?? {}) };
   material.userData.opticalOptions = { ...OPTICAL_DEFAULTS, ...(OPTICAL_PRESETS[options.surface] ?? {}) };
-  material.userData.surfaceNotes = 'Procedural object-space color, height-driven normal relief, and roughness. Map views are live diagnostics, not baked export maps. Normal view is world-space. Original ice stays opaque. Glass/quartz/frozenGlass use native scene-color transmission plus six view-depth samples of procedural inclusions, cloudiness and internal cracks. Artist thickness is approximate and bounded on fractured chunks; this is not mesh ray tracing, multiple scattering or glass-to-glass refraction. Metals use native conductor metalness with nonmetal patina, bounded brushing and scratches; brushing is directional relief, not an anisotropic BRDF. Wood uses local-Y growth rings, long grain, cut-end grain and sparse knots. Ceramic uses throwing rings, mineral speckles and a native dielectric glaze clearcoat. Soft worn edges, chips and hollow walls come from geometry. Snow is surface coverage without added geometry. Relief affects shading, not the silhouette.';
+  material.userData.surfaceNotes = 'Procedural object-space color, height-driven normal relief, and roughness. Map views are live diagnostics, not baked export maps. Normal view is world-space. Original ice stays opaque. Glass/quartz/frozenGlass use native scene-color transmission plus six view-depth samples of procedural inclusions, cloudiness and internal cracks. Artist thickness is approximate and bounded on fractured chunks; this is not mesh ray tracing, multiple scattering or glass-to-glass refraction. Metals use native conductor metalness with nonmetal patina, bounded brushing and scratches; brushing is directional relief, not an anisotropic BRDF. Wood uses seeded local-Y growth with irregular spacing, localized spiral knots, tapered branching splits, and raised bark relief, sharing color, height and roughness fields. Ceramic uses throwing rings, mineral speckles and a native dielectric glaze clearcoat. Soft worn edges, chips and hollow walls come from geometry. Snow is surface coverage without added geometry. Relief affects shading, not the silhouette.';
   material.customProgramCacheKey = () => rockMaterialProgramKey;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, material.userData.rockUniforms);
@@ -604,6 +567,8 @@ export function createRockMaterial(options = {}) {
       .replace('#include <project_vertex>', /* glsl */`
         #include <project_vertex>
         vRockPosition = mix(transformed, aRockPosition.xyz, aRockPosition.w);
+        vWoodPosition = mix(vRockPosition, aWoodPosition.xyz, aWoodPosition.w);
+        vWoodBarkMask = aWoodBarkMask;
         vRockUV = uv;
         vRockThicknessLimit = aRockThicknessLimit;
         vRockLocalNormal = normalize(objectNormal);

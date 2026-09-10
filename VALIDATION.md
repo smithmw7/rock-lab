@@ -1,5 +1,15 @@
 # Validation history
 
+## Rich procedural wood (September 10, 2026)
+
+- Added five grain recipes and five controls for irregular growth, spiral knots, heavy branching splits, bark coverage, and raised normal relief. Each wood species keeps an independent palette. Five closed Timber forms bring the library to 84 objects: worn plank, timber beam, bark log, split log, and stump.
+- Wood-specific coordinates align furniture stock and small tool grips without changing other materials. Exterior grain and the bare split-face mask survive repeated fracture. New inner cuts intentionally use Pinata UVs as a ring cross-section; this preserves inner texture-scale/offset controls rather than simulating anatomical cutting.
+- `verify:wood` passes 60 extreme geometry cases across 96 meshes, plus 2 generations of actual split-log and hammer-handle fracture: 5,088 exterior vertices preserve source grain coordinates. Full geometry validation passes 504 baseline + 168 displacement cases, and 95 actual fracture cases pass.
+- `qa:wood` passes on frozen source: 5 forms, 15 shape/recipe renders, all 9 wood slider pixel changes with no geometry/material/GPU resource churn, exact seeded image repeat, independent outer/inner and composite recipe downloads/imports, legacy defaults, actual handle tap and recut, live exterior/interior edits, reset, and desktop/390px label help. 47 captures and the final contact sheets were inspected; no browser errors or warnings.
+- Existing workshop, menus and complete tooltip QA pass. Production build/public exclusions and actual production worker fracture, public sound, reset, recipe download, gallery and scene undo pass. Standard web-game client screenshot/text shows the new ridged log.
+- Supplemental browser checks pass all five grain recipes through a single Scene Undo entry each, with exact nine-field undo/redo and independent material slots. Seeds reach all six material slots; five-object Variations use distinct seeds, and three Variations-to-Single cycles release their extra geometry and materials without resource growth. No browser errors or warnings.
+- Shader cracks and relief affect color, normals and roughness; they do not open holes or extrude the mesh. Log ridges, roots, branch stubs and chipped rims are actual geometry. No baked texture export, full wood-fiber BRDF, or physical-phone performance claim is made. Research and implementation rationale: [WOOD-MATERIALS.md](WOOD-MATERIALS.md).
+
 ## Global fracture settling
 
 This supersedes the earlier settling check that began observing debris after 30 seconds. The fix applies in the shared fracture controller to every generated material and shape.
@@ -97,7 +107,7 @@ Checked September 9, 2026.
 - The recipe compatibility browser suite imports actual v1, v2, and v3 JSON files, retaining prior shape/material/fracture settings and supplying the new workshop defaults. The v4 export also round-trips through the native file picker.
 - The old modular-library browser suite still passes all 12 groups with the new 58-object counts. Menu checks and all 110 parameter-label tooltips pass at desktop and narrow widths; action buttons have no tooltip help. The standard web-game client renders a steel/oak/brass hammer with matching text state. Screenshots and both workshop contact sheets were visually inspected.
 - Workshop browser runs record no JavaScript errors or warnings. Production build and private-asset exclusion checks pass. Vite retains its existing large-chunk warning. An extra zero-wear vase fracture with seed 701 returned fragments with an upstream triangulation warning; the main 69-case suite passes with only its existing explicit approximation warning.
-- Validation is desktop/browser based. Convex debris colliders approximate concavity; metal uses rigid fracture rather than bending, and wood cuts do not model directional splitting. Older baked furniture meshes use object-wide grain coordinates. GLB and baked texture export remain outside this change.
+- Validation is desktop/browser based. Convex debris colliders approximate concavity; metal uses rigid fracture rather than bending, and wood cuts do not model directional splitting. Furniture grain mapping was subsequently corrected in the rich procedural wood update above. GLB and baked texture export remain outside this change.
 
 
 ## Scrolling object library and modular kit

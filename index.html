@@ -189,7 +189,12 @@
           <div class="select-row"><label for="material-tint">Tint color</label><input id="material-tint" type="color" value="#ffffff" /></div>
           <div id="finish-controls"></div>
           <div id="metal-controls-panel" hidden><div class="section-title separated"><span>+</span><h2>Metal finish</h2></div><div id="metal-controls"></div><p class="control-note">Brushing adds directional scratches. Wear breaks the finish into aged patches and polished edges.</p></div>
-          <div id="wood-controls-panel" hidden><div class="section-title separated"><span>+</span><h2>Wood grain</h2></div><div id="wood-controls"></div><p class="control-note">Grain follows the length of each handle. End grain, knots, and warm color variation are generated in the shader.</p></div>
+          <div id="wood-controls-panel" hidden>
+            <div class="section-title separated"><span>+</span><h2>Wood grain</h2></div>
+            <div class="select-row"><label for="woodPattern">Grain recipe</label><select id="woodPattern"><option value="custom" disabled>Custom</option></select></div>
+            <div id="wood-controls"></div>
+            <p class="control-note">Seeded grain follows each piece, with knots, spirals, split fibers, and end rings. Bark and raised grain use normal relief; shape bevel, chip, and displacement controls change the silhouette.</p>
+          </div>
           <div id="ceramic-controls-panel" hidden><div class="section-title separated"><span>+</span><h2>Clay &amp; glaze</h2></div><div id="ceramic-controls"></div><p class="control-note">Glaze adds a clear reflective coat over the clay. Speckles and throwing rings give each vessel a handmade surface.</p></div>
           <div id="optical-controls-panel" hidden>
             <div class="section-title separated"><span>02</span><h2>Refraction &amp; color</h2></div>

@@ -1,6 +1,6 @@
 # Object library
 
-Rock Lab includes **79 procedural objects**. Open **Shape** to browse the full scrolling list. Category filters narrow it to Natural, Primitives, Structures, Architecture, Furniture, Tools, Metal, Lathe, Terrain, or Paths. Search matches names and descriptions. Choose a row to generate it. Workshop objects supply a suggested initial material; the material, seed, and surface settings remain editable.
+Rock Lab includes **84 procedural objects**. Open **Shape** to browse the full scrolling list. Category filters narrow it to Natural, Primitives, Structures, Architecture, Furniture, Timber, Tools, Metal, Lathe, Terrain, or Paths. Search matches names and descriptions. Choose a row to generate it. Workshop objects supply a suggested initial material; the material, seed, and surface settings remain editable.
 
 ## The 20-object expansion
 
@@ -40,6 +40,12 @@ Seed, geometry detail, irregularity, edge bevels, and displacement alter the gen
 Assemblies use separate closed solids for their component parts. Tap one part to break it, or use **Break asset** for the full assembly. Unbroken parts remain fixed in the destruction preview. This is a material and fracture test, not a simulation of structural load or collapse.
 
 Save any new object through **File → Save recipe**. Loading the recipe restores its shape and settings as an intact asset and reveals its selected library row. Recipe JSON and PNG remain the available exports.
+
+## Timber
+
+Five wood forms provide surfaces for the richer grain system: **Worn plank**, **Timber beam**, **Bark log**, **Split log**, and **Tree stump**. Rims, ridges, roots, and branch stubs are geometry; cracks, knots, and bark relief are procedural shading. The split log's flat face stays exposed wood even at full bark coverage.
+
+In **Material → Wood → Grain recipe**, try Natural grain, Storybook spirals, Split timber, Rugged bark, or Burl & whorls. Grain follows each board, furniture part, and handle. All grain controls save independently for outer/inner and tool parts. See [wood patterns and research](../WOOD-MATERIALS.md).
 
 ## The workshop expansion
 
@@ -82,6 +88,6 @@ These 16 additions keep the original stone material system. Select a suggested s
 | Brick path | Staggered bricks fitted together around bends |
 | Cobblestone path | Shared Voronoi cells with real mortar gaps |
 | Plank walkway | Crosswise boards with aligned wood grain |
-| Object path | Repeated copies of any of the 74 individual objects |
+| Object path | Repeated copies of any of the 79 individual objects |
 
 Open **Path** to drag 2–12 route points, set exact X/Z coordinates, and adjust width, gap, size, thickness, smoothness, offset, or seeded variation. Object paths preserve the source's component materials and tool or lathe controls. Paths keep world units and use a single-layout view, with explicit 128-mesh and 80,000-triangle preview budgets. See the [path guide](PATHS.md) for editing, fitting, budget messages, and destruction.

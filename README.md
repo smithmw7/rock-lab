@@ -17,9 +17,10 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 | :--- | :--- |
 | **Scene builder** | Multiple independent instances, selection, move/rotate/scale handles, Undo/Redo, snapping, and shaded/wireframe/collider/normal views |
 | **8 scene examples** | Editable landscapes, ruins, workshops, and courtyards with rendered previews in the Gallery |
-| **79 objects** | Rocks, terrain, modular architecture, furniture, tools, metal stock, pottery, and paths in a searchable scrolling library |
+| **84 objects** | Rocks, terrain, modular architecture, furniture, tools, metal stock, pottery, and paths in a searchable scrolling library |
 | **Terrain kit** | 16 cliffs, rock pillars, flat platforms, and stone ramps using the original material system |
-| **Spline paths** | Editable stepping stones, fitted bricks and cobbles, wooden planks, or any of 74 source objects |
+| **Spline paths** | Editable stepping stones, fitted bricks and cobbles, wooden planks, or any of 79 source objects |
+| **Wood grain** | Five grain recipes with irregular growth, spiral knots, branching cracks, bark, and relief controls |
 | **25 materials** | Stone and ice, glass and crystal, eight metals, three woods, and four ceramic finishes |
 | **Composite tools** | Four hammer heads, three knife blades, and a hatchet with separate handle, working end, and fitting materials |
 | **Spline lathe** | Drag six profile points to reshape bowls, vases, jars, urns, planters, saucers, goblets, and candlesticks |
@@ -109,11 +110,12 @@ The GitHub Actions workflow builds and deploys `main` to Pages. Relative asset p
 Start with [`src/geometry.js`](src/geometry.js), [`src/material.js`](src/material.js), [`src/ground.js`](src/ground.js), and [`src/fracture.js`](src/fracture.js) to reuse the generators in another Three.js project. The [full guide](docs/USER-GUIDE.md) explains the controls, integration, rendering tradeoffs, and game-asset pipeline.
 
 - [Glass, crystal, and ice shader research](TRANSLUCENT-MATERIALS.md)
-- [Object library: all 79 forms](docs/OBJECT-LIBRARY.md)
+- [Object library](docs/OBJECT-LIBRARY.md)
 - [Composite tools, materials, and spline lathe guide](docs/WORKSHOP.md)
 - [Terrain and editable spline paths](docs/PATHS.md)
 - [Scene building and transform tools](docs/SCENE.md)
-- [Stylized wood research and pipeline](STYLIZED-WOOD-RESEARCH.md)
+- [Procedural wood patterns, timber shapes, and research](WOOD-MATERIALS.md)
+- [Original wood research and Blender pipeline](STYLIZED-WOOD-RESEARCH.md)
 - [Validation notes](VALIDATION.md)
 - [Contributor rules](AGENTS.md)
 

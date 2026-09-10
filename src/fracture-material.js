@@ -124,6 +124,8 @@ export function prepareFractureGeometry(geometry, referenceGeometry = null, { po
   const point = new Vector3(), pattern = new Vector3(), fragmentNormal = new Vector3();
   const scratch = { closest: new Vector3(), weights: new Vector3(), normal: new Vector3() };
   const attributes = referenceGeometry?.attributes ?? {};
+  const woodPositions = attributes.aWoodPosition ? new Float32Array(count * 4) : null;
+  const barkMasks = attributes.aWoodBarkMask ? new Float32Array(count).fill(1) : null;
   let recoveredVertices = 0;
   for (let i = 0; i < count; i++) {
     point.fromBufferAttribute(position, i).add(offset);
@@ -136,12 +138,17 @@ export function prepareFractureGeometry(geometry, referenceGeometry = null, { po
       const { indices, weights } = sample;
       if (attributes.color) for (let c = 0; c < 3; c++) colors[i * 3 + c] = interpolate(attributes.color, indices, weights, c);
       if (attributes.aFaceTone) tones[i] = interpolate(attributes.aFaceTone, indices, weights, 0);
+      if (barkMasks) barkMasks[i] = interpolate(attributes.aWoodBarkMask, indices, weights, 0);
       if (attributes.aBevel) bevels[i] = interpolate(attributes.aBevel, indices, weights, 0);
       if (attributes.aRockOriginalUp) originalUp[i] = interpolate(attributes.aRockOriginalUp, indices, weights, 0);
       if (attributes.aRockPosition) pattern.set(...[0, 1, 2].map(c => interpolate(attributes.aRockPosition, indices, weights, c)));
       recoveredVertices++;
     }
     patternPositions.set([pattern.x, pattern.y, pattern.z, 1], i * 4);
+    if (woodPositions) {
+      const wood = sample ? [0, 1, 2].map(c => interpolate(attributes.aWoodPosition, sample.indices, sample.weights, c)) : pattern.toArray();
+      woodPositions.set([...wood, 1], i * 4);
+    }
     if (fallbackUV) {
       const n = fragmentNormal;
       if (Math.abs(n.y) >= Math.abs(n.x) && Math.abs(n.y) >= Math.abs(n.z)) fallbackUV.set([point.x, point.z], i * 2);
@@ -153,6 +160,8 @@ export function prepareFractureGeometry(geometry, referenceGeometry = null, { po
   geometry.setAttribute('aFaceTone', new Float32BufferAttribute(tones, 1));
   geometry.setAttribute('aBevel', new Float32BufferAttribute(bevels, 1));
   geometry.setAttribute('aRockPosition', new Float32BufferAttribute(patternPositions, 4));
+  if (woodPositions) geometry.setAttribute('aWoodPosition', new Float32BufferAttribute(woodPositions, 4));
+  if (barkMasks) geometry.setAttribute('aWoodBarkMask', new Float32BufferAttribute(barkMasks, 1));
   geometry.setAttribute('aRockOriginalUp', new Float32BufferAttribute(originalUp, 1));
   if (fallbackUV) geometry.setAttribute('uv', new Float32BufferAttribute(fallbackUV, 2));
   geometry.userData.fractureSurface = { recoveredVertices, exteriorVertices: outerVertices.reduce((sum, value) => sum + value, 0), stablePattern: true };
