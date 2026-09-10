@@ -28,6 +28,7 @@ jobs:
       - run: npm run verify:terrain
       - run: npm run verify:paths
       - run: npm run verify:scene
+      - run: npm run verify:scene-presets
       - run: npm run verify:fracture
       - run: npm run build
       - run: npm run verify:publication

@@ -43,6 +43,7 @@ try {
   await page.keyboard.press('Enter'); assert.equal(await focused(), 'new-seed');
   await page.keyboard.press('Tab'); assert.equal(await focused(), 'mode-object');
   await page.keyboard.press('Tab'); assert.equal(await focused(), 'mode-scene');
+  await page.keyboard.press('Tab'); assert.equal(await focused(), 'open-scene-gallery');
   await page.keyboard.press('Tab'); assert.equal(await focused(), 'sound-toggle');
   assert.equal(await page.locator('.app-menu-panel:not([hidden])').count(), 0);
   await open('file'); await page.locator('.brand').click();

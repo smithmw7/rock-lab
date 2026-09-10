@@ -2,6 +2,14 @@
 
 Rock Lab opens in **Object** mode. The top-center **Scene** switch opens a construction workspace with a copy of your current object. The original Object draft and camera are kept separately.
 
+## Start with the Gallery
+
+Open **Gallery** beside Object / Scene to browse eight editable examples: Alpine crossing, Redrock canyon, Coastal ruins, Crystal hollow, Basalt forge, Quarry yard, Artisan terrace, and Garden courtyard. Choose a thumbnail to load the objects, materials, lighting, and ground together. The Move tool starts active, so click an object and drag a gizmo axis to reposition it.
+
+Geometry parameter controls and Material edit the selected object. Clicking a shape card adds a new instance. Each example is a starting point that you can reshape, recolor, extend, and save as your own scene.
+
+The first gallery load keeps one previous-workspace backup for the current page session. Further preset choices and JSON imports leave that same backup available. **Gallery → Restore previous scene** returns to it, including the Object draft or Scene arrangement and viewing context, then clears the backup. The next gallery load can keep a new one. Saved version 6 recipes preserve the scene's preset identity and your edits; the temporary restore backup is not serialized.
+
 ## Add and edit
 
 1. Choose an entry in **Shape** to add an instance. **Add current object** in the toolbar adds another copy of the current inspector recipe. New instances are placed beside the arrangement and framed together.

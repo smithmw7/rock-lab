@@ -16,7 +16,7 @@ let server, browser;
 async function serveBuild() {
   const directory = path.join(project, 'dist');
   await fs.access(path.join(directory, 'index.html'));
-  const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wav': 'audio/wav', '.wasm': 'application/wasm', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
+  const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wav': 'audio/wav', '.wasm': 'application/wasm', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.json': 'application/json' };
   server = http.createServer(async (request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
@@ -101,7 +101,29 @@ try {
   assert.deepEqual(JSON.parse(await fs.readFile(recipeFile, 'utf8')), recipe);
   report.checks.productionDownload = { passed: true, file: recipeFile, suggestedFilename: download.suggestedFilename() };
 
-  const assets = report.responses.filter(response => ['script', 'stylesheet'].includes(response.type) || /\.(?:js|css|wav|wasm)(?:\?|$)/i.test(response.url));
+  await page.locator('#open-scene-gallery').click();
+  const thumbnails = page.locator('[data-scene-preset] img');
+  assert.equal(await thumbnails.count(), 8);
+  const images = [];
+  for (const image of await thumbnails.all()) {
+    await image.scrollIntoViewIfNeeded();
+    await image.evaluate(node => node.decode());
+    const preview = await image.evaluate(node => ({ url: node.currentSrc, width: node.naturalWidth, height: node.naturalHeight }));
+    assert.equal(preview.width, 640); assert.equal(preview.height, 400);
+    assert.equal(new URL(preview.url).origin, origin);
+    assert.ok(new URL(preview.url).pathname.startsWith(`${prefix}scene-gallery/`));
+    images.push(preview);
+  }
+  await page.locator('[data-scene-preset="alpine-crossing"]').click();
+  await page.waitForFunction(() => !document.querySelector('#scene-gallery-dialog').open && window.rockLab.workspaceMode === 'scene');
+  assert.equal(await page.evaluate(() => window.rockLab.sceneEditor.getSnapshot().instances), 14);
+  await page.locator('#open-scene-gallery').click();
+  await page.locator('#restore-previous-scene').click();
+  await page.waitForFunction(() => !document.querySelector('#scene-gallery-dialog').open && window.rockLab.workspaceMode === 'object');
+  assert.deepEqual(await page.evaluate(() => window.rockLab.recipe()), recipe);
+  report.checks.productionGallery = { passed: true, thumbnails: images, loaded: 'alpine-crossing', exactObjectRestore: true };
+
+  const assets = report.responses.filter(response => ['script', 'stylesheet'].includes(response.type) || /\.(?:js|css|wav|wasm|webp)(?:\?|$)/i.test(response.url));
   assert.ok(assets.some(asset => asset.url.includes('/assets/index-') && asset.url.endsWith('.js')));
   assert.ok(assets.some(asset => asset.url.includes('/assets/index-') && asset.url.endsWith('.css')));
   assert.ok(assets.some(asset => /\/assets\/rapier-[^/]+\.js/.test(asset.url)), 'Rapier dynamic import must be fetched from the nested deployment');

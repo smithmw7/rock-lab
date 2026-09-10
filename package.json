@@ -21,9 +21,12 @@
     "verify:terrain": "node scripts/verify-terrain.mjs",
     "verify:paths": "node scripts/verify-paths.mjs",
     "verify:scene": "node scripts/verify-scene.mjs",
+    "verify:scene-presets": "node scripts/verify-scene-presets.mjs",
     "qa:paths": "node scripts/qa-paths.mjs",
     "qa:turntable": "node scripts/qa-turntable.mjs",
-    "qa:scene": "node scripts/qa-scene.mjs"
+    "qa:scene": "node scripts/qa-scene.mjs",
+    "qa:scene-gallery": "node scripts/qa-scene-gallery.mjs",
+    "render:scene-gallery": "node scripts/render-scene-gallery.mjs"
   },
   "dependencies": {
     "@dgreenheck/three-pinata": "2.0.1",

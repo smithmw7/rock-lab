@@ -260,7 +260,7 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
   };
   const onPointerCancel=event=>{activePointers.delete(event.pointerId);pointerStart=null;stopDrag();};
   const onKeyDown=event=>{
-    if(!active||event.defaultPrevented||event.altKey)return;
+    if(!active||event.defaultPrevented||event.altKey||document.querySelector?.('dialog[open]'))return;
     const target=event.target;if(target?.closest?.('input,textarea,select,[contenteditable="true"],[role="textbox"]'))return;
     const key=event.key.toLowerCase();
     if((event.ctrlKey||event.metaKey)&&key==='d'){event.preventDefault();duplicateSelected();return;}

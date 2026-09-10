@@ -1,5 +1,16 @@
 # Validation history
 
+## Editable scene gallery
+
+- Eight authored examples contain 113 independent objects across alpine, desert, ruins, crystal, forge, quarry, pottery, and courtyard compositions. Every scene has terrain and raised support surfaces, with 13–15 objects, 36–65 constituent meshes, and 4,452–28,360 triangles. The gallery previews are actual 640×400 WebP renders, totaling about 220 KB.
+- `verify:scene-presets` checks deterministic geometry, finite transforms, actual support contacts, conservative per-mesh prop spacing, independent nested material recipes, editor budgets, and valid preview files. All 812 temporary geometry resources are disposed. This check now runs in Pages CI; publication checks also verify all eight deployed thumbnails match the source assets.
+- All 14 gallery browser groups pass on matching source hashes with zero errors, warnings, or failed requests. Checks cover real viewport selection in every example, snapped native gizmo movement with a fixed camera, independent material edits, fresh copies after editing, v6 file downloads/imports, exact previous-workspace restoration across repeated choices and imports, modal keyboard safety, responsive touch input, and stable renderer resources across repeated gallery cycles.
+- An intentionally held load confirms that Close, Escape, and backdrop dismissal stay blocked until completion, and a dropped JSON file cannot replace the workspace during that interval. The unchanged previous scene is retained until the authored scene commits. Desktop, mobile, and all eight scene previews were visually inspected.
+- The existing 23 Scene groups, menus, all 142 parameter tooltips, and eight turntable/fracture groups pass. The production build passes nested-path browser checks for all eight thumbnails, actual scene loading, exact Object/fracture restoration, public audio, fracture worker, and downloads. Baseline geometry/material verification and all 90 fracture cases pass; Vite retains its existing large-chunk warning.
+- The gallery keeps one temporary previous-workspace backup until Restore is used. It is not serialized; camera and inspector context are restored within the page session. Scene mode remains an editor without physics simulation. These browser checks do not establish physical-device performance.
+
+Checked September 9, 2026.
+
 ## Object and Scene workspace
 
 - Added a separate Scene workspace with independent object recipes/resources, transforms, snapping, selection, a hierarchy, grid, and shaded/wireframe/convex-collider/geometry-normal views. Object remains the default and its draft, camera, and fracture settings are restored when returning.

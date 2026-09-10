@@ -53,9 +53,12 @@
             </div>
           </div>
         </nav>
-        <div class="scene-mode-switch" role="group" aria-label="Workspace mode">
-          <button id="mode-object" aria-pressed="true">Object</button>
-          <button id="mode-scene" aria-pressed="false">Scene</button>
+        <div class="workspace-navigation">
+          <div class="scene-mode-switch" role="group" aria-label="Workspace mode">
+            <button id="mode-object" aria-pressed="true">Object</button>
+            <button id="mode-scene" aria-pressed="false">Scene</button>
+          </div>
+          <button id="open-scene-gallery" aria-haspopup="dialog" aria-controls="scene-gallery-dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Gallery</span></button>
         </div>
         <div class="header-actions"><button id="sound-toggle" aria-pressed="false" aria-label="Mute sound effects"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="sound-wave" d="M17 8a7 7 0 0 1 0 8m3-11a11 11 0 0 1 0 14"/><path class="sound-slash" d="m3 3 18 18"/></svg><span class="sound-label">Sound on</span></button></div>
       </header>
@@ -274,6 +277,15 @@
         <footer><span>Seeded geometry + procedural shading</span><span id="asset-counts">Procedural asset library</span></footer>
       </main>
     </div>
+    <dialog id="scene-gallery-dialog" aria-labelledby="scene-gallery-title" aria-describedby="scene-gallery-description">
+      <div class="scene-gallery-header">
+        <div><span class="eyebrow">READY TO BUILD</span><h2 id="scene-gallery-title" tabindex="-1">Scene gallery</h2><p id="scene-gallery-description">Choose a starting point. Every object stays editable.</p></div>
+        <button id="close-scene-gallery" aria-label="Close scene gallery"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+      <div id="scene-gallery-grid" class="scene-gallery-grid" aria-label="Example scenes"></div>
+      <div class="scene-gallery-footer"><p>Loading an example keeps your previous scene available to restore.</p><button id="restore-previous-scene" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v6h6M4 10a8 8 0 1 1 1 8"/></svg><span>Restore previous scene</span></button></div>
+      <p id="scene-gallery-status" role="status" aria-live="polite"></p>
+    </dialog>
     <dialog id="help-dialog" aria-labelledby="help-title">
       <form method="dialog"><button aria-label="Close help">×</button></form>
       <span class="eyebrow">ROCK LAB</span><h2 id="help-title">Make something solid.</h2>
