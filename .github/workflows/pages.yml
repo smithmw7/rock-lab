@@ -32,6 +32,7 @@ jobs:
       - run: npm run verify:scene-presets
       - run: npm run verify:studio-presets
       - run: npm run verify:scene-history
+      - run: npm run verify:surface-snap
       - run: npm run verify:camera
       - run: npm run verify:fracture
       - run: npm run verify:fracture-settling

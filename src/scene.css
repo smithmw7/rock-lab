@@ -48,6 +48,7 @@
 .scene-vector input[type=number]{width:100%;min-width:0;padding:8px 5px;font-size:11px}
 .scene-setting-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:13px 0;color:#b7c4cc;font-size:11px}
 .scene-setting-row input[type=number],.scene-setting-row select{width:95px;font-size:11px}
+#scene-snap-mode{width:155px;max-width:65%}
 @media(max-width:1380px){.app-header .brand span{display:none}}
 @media(max-width:1040px){
   body #app{grid-template-rows:108px minmax(0,1fr)}

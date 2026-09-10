@@ -15,7 +15,7 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 
 | | What's inside |
 | :--- | :--- |
-| **Scene builder** | Multiple independent instances, selection, move/rotate/scale handles, Undo/Redo, snapping, and shaded/wireframe/collider/normal views |
+| **Scene builder** | Multiple independent instances, selection, move/rotate/scale handles, Undo/Redo, ground and object contact snapping, and shaded/wireframe/collider/normal views |
 | **Camera controls** | Top, left, right, front, back, and isometric views; orthographic/perspective switching and an 18–135 mm radial lens dial |
 | **8 scene examples** | Editable landscapes, ruins, workshops, and courtyards with rendered previews in the Gallery |
 | **84 objects** | Rocks, terrain, modular architecture, furniture, tools, metal stock, pottery, and paths in a searchable scrolling library |
@@ -46,6 +46,8 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 Parameter labels have explanations on hover, keyboard focus, and touch. Action buttons stay free of tooltips. **View** contains framing, variations, turntable, and wireframe; **Help** contains the controls guide.
 
 The viewport's upper-right camera gizmo switches viewing direction. **Orthographic** starts on; switch it off to use the **Focal length** dial, with lower values showing a wider field of view and higher values zooming in. Drag around the dial or use arrow keys when it has focus. Object and Scene keep separate camera drafts while you work. Camera views are inspection settings, not part of exported asset recipes.
+
+In Scene mode, **Snap** defaults to **Ground & objects**. Horizontal Move handles settle objects onto the ground or a supporting mesh, and nearby side faces attract within **Snap distance**. Vertical handles allow lifting and snap only near contacts. Start above taller surfaces to place objects on top; objects can still fit beneath tables and arches. Choose **Snap to → Grid** for position increments. Rotate and Scale retain their increment controls, numeric transforms stay exact, and the Grid toggle only controls the visible guide.
 
 ## Start from a scene
 

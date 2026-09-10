@@ -105,10 +105,12 @@
           </div>
           <div class="section-title separated"><span>03</span><h2>Transform settings</h2></div>
           <div class="select-row scene-setting-row"><label for="scene-space">Gizmo space</label><select id="scene-space"><option value="world">World</option><option value="local">Local</option></select></div>
-          <div class="scene-setting-row"><label for="scene-translation-snap">Move step</label><input id="scene-translation-snap" type="number" min="0.01" max="10" step="0.1" value="0.5" /></div>
+          <div class="select-row scene-setting-row"><label for="scene-snap-mode">Snap to</label><select id="scene-snap-mode"><option value="surface">Ground &amp; objects</option><option value="grid">Grid</option></select></div>
+          <div id="scene-snap-distance-row" class="scene-setting-row"><label for="scene-snap-distance">Snap distance</label><input id="scene-snap-distance" type="number" min="0.01" max="2" step="0.05" value="0.3" /></div>
+          <div id="scene-translation-snap-row" class="scene-setting-row" hidden><label for="scene-translation-snap">Move step</label><input id="scene-translation-snap" type="number" min="0.01" max="10" step="0.1" value="0.5" /></div>
           <div class="scene-setting-row"><label for="scene-rotation-snap">Rotate step</label><input id="scene-rotation-snap" type="number" min="1" max="90" step="1" value="15" /></div>
           <div class="scene-setting-row"><label for="scene-scale-snap">Scale step</label><input id="scene-scale-snap" type="number" min="0.01" max="2" step="0.05" value="0.1" /></div>
-          <p class="control-note">Turn on Snap in the viewport toolbar to use these increments while dragging a gizmo. Numeric transforms allow precise edits.</p>
+          <p class="control-note">Turn on Snap to place objects against the ground and nearby surfaces, or choose Grid for movement increments. Rotate and Scale use their steps in either mode. Numeric transforms always keep your exact values.</p>
         </section>
         <section id="panel-shape" role="tabpanel" aria-labelledby="tab-shape">
           <div class="section-title"><span>01</span><h2>Object library</h2><span class="count-badge" id="shape-count">Objects</span></div>

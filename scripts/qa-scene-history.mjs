@@ -131,7 +131,7 @@ try{
   }
   report.checks.renameAndNumericTransforms={name:'History hammer',numericCases,exactRestore:true};
 
-  before=await snapshot();await numeric('scene-translation-snap',.5);await page.locator('#scene-snap').check();await page.locator('[data-scene-tool="translate"]').click();await page.locator('#scene-frame').click();await advance(800);
+  before=await snapshot();await page.locator('#scene-snap-mode').selectOption('grid');await numeric('scene-translation-snap',.5);await page.locator('#scene-snap').check();await page.locator('[data-scene-tool="translate"]').click();await page.locator('#scene-frame').click();await advance(800);
   assert.deepEqual(history(await snapshot()),history(before),'Review settings do not create history');
   const gizmo=await dragGizmo();await roundtripEdit(gizmo.beforeSnapshot,gizmo.afterSnapshot,'Native gizmo drag');
   report.checks.gizmo=conciseGesture(gizmo);await capture('undo-gizmo');

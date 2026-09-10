@@ -34,6 +34,8 @@ const firstPose=structuredClone(editor.getSnapshot().objects.find(object=>object
 editor.setTransform({position:[3,.7,1],rotation:[30,70,10],scale:[.5,2,1]});
 assert.deepEqual(editor.getSnapshot().objects.find(object=>object.id===a),firstPose,'Only the selected object may change');
 editor.updateSettings({snap:true,translationSnap:.5,rotationSnap:15,scaleSnap:.25});
+assert.equal(editor.getSnapshot().settings.snapMode,'surface');assert.equal(editor.getSnapshot().settings.snapDistance,.3);
+assert.equal(editor.getTransformControls().translationSnap,null,'Surface snapping does not quantize movement to the grid');
 editor.setTransform({position:[3.21,.74,-1.18],rotation:[17,39,-7],scale:[.61,1.86,.88]});
 assert.deepEqual(editor.getSnapshot().selection.position,[3.21,.74,-1.18]);assert.deepEqual(editor.getSnapshot().selection.rotation,[17,39,-7]);assert.deepEqual(editor.getSnapshot().selection.scale,[.61,1.86,.88]);
 const snappedPose=editor.getSnapshot().selection;editor.setTransform({position:[Infinity,0,0]});assert.deepEqual(editor.getSnapshot().selection,snappedPose,'Invalid numeric transform is atomic');
@@ -62,7 +64,7 @@ for(const renderMode of ['wireframe','normals','collider','shaded']){
 }
 editor.setTool('translate');const control=editor.getTransformControls();assert.equal(control.object,editor.getSelected().node);assert.equal(control.enabled,true);
 control.dragging=true;assert.equal(orbit.enabled,false);control.dragging=false;assert.equal(orbit.enabled,true);
-editor.updateSettings({snap:true,translationSnap:.25,rotationSnap:30,scaleSnap:.1,space:'local'});assert.equal(control.translationSnap,.25);assert.equal(control.rotationSnap,Math.PI/6);assert.equal(control.space,'local');
+editor.updateSettings({snap:true,snapMode:'grid',translationSnap:.25,rotationSnap:30,scaleSnap:.1,space:'local'});assert.equal(control.translationSnap,.25);assert.equal(control.rotationSnap,Math.PI/6);assert.equal(control.space,'local');
 const key=key=>({key,target:{closest:()=>null},preventDefault(){this.defaultPrevented=true;}});
 listeners.get('keydown')(key('e'));assert.equal(editor.getSnapshot().settings.tool,'rotate');listeners.get('keydown')(key('f'));assert.equal(frames,1);
 listeners.get('keydown')({...key('r'),target:{closest:()=>({})}});assert.equal(editor.getSnapshot().settings.tool,'rotate','Shortcuts must ignore focused form fields');

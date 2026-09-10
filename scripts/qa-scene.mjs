@@ -136,7 +136,7 @@ try{
   report.checks.selectedOnlyMaterialAndGeometry=true;
 
   await page.locator('#tab-scene').click();await numeric('scene-name','Obsidian hammer');
-  await numeric('scene-translation-snap',.5);await numeric('scene-rotation-snap',15);await numeric('scene-scale-snap',.25);await page.locator('#scene-snap').check();
+  await page.locator('#scene-snap-mode').selectOption('grid');await numeric('scene-translation-snap',.5);await numeric('scene-rotation-snap',15);await numeric('scene-scale-snap',.25);await page.locator('#scene-snap').check();
   for(const[id,value]of[['scene-position-x',1.24],['scene-position-y',.26],['scene-position-z',-1.26],['scene-rotation-y',22],['scene-scale-x',1.37]])await numeric(id,value);
   current=await snapshot();vectors(current.scene.selection.position,[1.24,.26,-1.26],'Exact numeric position with snap enabled');almost(current.scene.selection.rotation[1],22,'Exact rotation');almost(current.scene.selection.scale[0],1.37,'Exact scale');assert.equal(current.scene.selection.name,'Obsidian hammer');
   report.checks.exactNumericTransforms={position:current.scene.selection.position,rotation:current.scene.selection.rotation,scale:current.scene.selection.scale};

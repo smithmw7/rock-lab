@@ -1,5 +1,14 @@
 # Validation history
 
+## Ground and object contact snapping (September 10, 2026)
+
+- Scene Snap now defaults to Ground & objects. Snap distance controls nearby surface attraction; Grid remains an explicit alternative with its existing movement increments. Numeric transforms remain exact, and grid visibility is independent. Scene files preserve snap mode/distance; older files default to surface mode.
+- Move gestures snapshot real mesh triangles into CPU query trees. Horizontal world-space movement adds a support correction; vertical or tilted local handles use nearby contacts within their allowed axes. Ground uses the exact transformed lowest vertex. Object support and side contact use bounded triangle probes, including source meshes hidden by Collider view. Support height is limited by the selected object's current top plus snap distance so empty space under tables and arches remains usable.
+- `verify:surface-snap` passes 16 cases covering transformed/nested meshes, nonuniform scale, exact ground contact on dense rotated geometry, stacking, rotated side contact, ramps, arch gaps, selected raised geometry, lifting, local-axis constraints, self-exclusion, and no input mutation. Existing Scene and Scene-history node verifiers pass.
+- Focused browser QA passes 16 groups with 8 inspected captures: real gizmo dragging in both projections, floor/table/platform/side contacts, empty-space placement, free lifting, Snap off, exact numeric edits, explicit grid snapping, one Undo step per drag and exact Redo, stable GPU resources, native recipe download/file-picker restoration, legacy defaults, and narrow touch label help. No browser errors or warnings; final runtime source hashes match the passing report.
+- Existing Scene, Scene-history, Gallery, camera verification, and all 152 parameter tooltip checks pass. The standard web-game client screenshot and text confirm Scene Move with surface snapping enabled. The production build, private-asset exclusions, and production browser smoke pass real fracture/reset, recipe downloads, gallery loading, Scene Undo, and asset paths. Vite retains its existing large-chunk warning.
+- This is a placement aid, not continuous mesh collision detection. Bounded object probes can miss features smaller than their spacing. No physical-device performance claim is made.
+
 ## View gizmo and lens controls (September 10, 2026)
 
 - Added Top, Left, Right, Front, Back, and true isometric view snaps, a live SVG orientation indicator, an Orthographic toggle, and an accessible 18–135 mm radial focal-length dial. Orthographic remains the default. The dial preserves its value while disabled in orthographic mode; perspective changes lens field of view at a fixed camera position.

@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
+import { createSurfaceSnapSession } from './surface-snap.js';
 
 export const SCENE_LIMITS=Object.freeze({instances:64,pieces:512,triangles:300000});
 export const SCENE_HISTORY_LIMIT=50;
-export const SCENE_DEFAULTS=Object.freeze({tool:'select',space:'world',snap:false,translationSnap:.25,rotationSnap:15,scaleSnap:.1,renderMode:'shaded',grid:true});
+export const SCENE_DEFAULTS=Object.freeze({tool:'select',space:'world',snap:false,snapMode:'surface',snapDistance:.3,translationSnap:.25,rotationSnap:15,scaleSnap:.1,renderMode:'shaded',grid:true});
 const TOOLS=['select','translate','rotate','scale'],MODES=['shaded','wireframe','collider','normals'];
-const SETTING_RANGES={translationSnap:[.01,10],rotationSnap:[1,90],scaleSnap:[.01,2]};
+const SETTING_RANGES={snapDistance:[.01,2],translationSnap:[.01,10],rotationSnap:[1,90],scaleSnap:[.01,2]};
 const TRANSFORM_RANGES={position:[-50,50],rotation:[-360,360],scale:[.05,10]};
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 const identity=()=>({position:[0,0,0],rotation:[0,0,0],scale:[1,1,1]});
@@ -37,7 +38,7 @@ function transformValues(input={},fallback=identity(),strict=false){
 function settingsValues(input={},fallback=SCENE_DEFAULTS,strict=false){
   if(!input||typeof input!=='object'||Array.isArray(input))throw new TypeError('Scene settings must be an object.');
   const result={...fallback};
-  for(const [key,allowed] of [['tool',TOOLS],['space',['world','local']],['renderMode',MODES]]){
+  for(const [key,allowed] of [['tool',TOOLS],['space',['world','local']],['renderMode',MODES],['snapMode',['surface','grid']]]){
     if(!(key in input))continue;
     if(!allowed.includes(input[key])){if(strict)throw new Error(`Unsupported scene ${key}.`);continue;}result[key]=input[key];
   }
@@ -74,6 +75,7 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
   const colliderEdgeMaterial=new THREE.LineBasicMaterial({color:0x86efd0,transparent:true,opacity:.85});colliderEdgeMaterial.name='Scene convex collider edges';
   const records=new Map(),document=domElement.ownerDocument,raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),activePointers=new Set();
   let settings={...SCENE_DEFAULTS},active=false,selectedId=null,destroyed=false,serial=0,notifying=false,dragOrbitState=null,pointerStart=null;
+  let surfaceSession=null,lastSurfaceSnap=null;
   // Only JSON recipes and transforms are retained. Undo builds an owned scene
   // transactionally; no disposed meshes or GPU resources live in history.
   const undoEntries=[],redoEntries=[];
@@ -84,7 +86,7 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
   function totals(list=records.values()){const values=[...list];return{instances:values.length,pieces:values.reduce((n,record)=>n+record.pieces,0),triangles:values.reduce((n,record)=>n+record.triangles,0)};}
   function withinBudget(values){for(const key of Object.keys(SCENE_LIMITS))if(values[key]>SCENE_LIMITS[key])throw new Error(`Scene limit reached: ${SCENE_LIMITS[key].toLocaleString()} ${key}. Remove an object or use a simpler asset.`);}
   function objectSnapshot(record){return{id:record.id,name:record.name,recipe:copyRecipe(record.recipe),...transformOf(record.node),pieces:record.pieces,triangles:record.triangles};}
-  function getSnapshot(){return{active,selectedId,selection:selected()?objectSnapshot(selected()):null,objects:[...records.values()].map(objectSnapshot),settings:{...settings},budgets:{...SCENE_LIMITS},...totals(),dragging:gizmo.dragging,history:getHistoryState()};}
+  function getSnapshot(){return{active,selectedId,selection:selected()?objectSnapshot(selected()):null,objects:[...records.values()].map(objectSnapshot),settings:{...settings},budgets:{...SCENE_LIMITS},...totals(),dragging:gizmo.dragging,snapping:lastSurfaceSnap,history:getHistoryState()};}
   function notify(){if(destroyed||notifying)return;notifying=true;try{onChange(getSnapshot());}finally{notifying=false;}}
   function historySnapshot(){const {objects,selectedId}=serialize();return{objects,selectedId};}
   function getHistoryState(){return{canUndo:undoEntries.length>0,canRedo:redoEntries.length>0,undoLabel:undoEntries.at(-1)?.label??'',redoLabel:redoEntries.at(-1)?.label??'',undoCount:undoEntries.length,redoCount:redoEntries.length};}
@@ -125,7 +127,8 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
   function renameSelected(...args){return edit('Rename object',()=>renameRecord(...args));}
   function updateSelectedRecipe(...args){return edit('Change material',()=>updateRecordRecipe(...args));}
   function restoreOrbit(){if(dragOrbitState!==null&&orbitControls){orbitControls.enabled=dragOrbitState;dragOrbitState=null;}}
-  function stopDrag(){if(gizmo.dragging)gizmo.dragging=false;restoreOrbit();pointerStart=null;activePointers.clear();}
+  function clearSurfaceSnap(){surfaceSession?.dispose();surfaceSession=null;lastSurfaceSnap=null;}
+  function stopDrag(){if(gizmo.dragging)gizmo.dragging=false;clearSurfaceSnap();restoreOrbit();pointerStart=null;activePointers.clear();}
   function setCamera(next){
     if(!next?.isCamera)throw new TypeError('Scene editor requires a camera.');
     if(destroyed||next===camera)return false;
@@ -214,7 +217,7 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
   }
   function applySettings(){
     gizmo.setMode(settings.tool==='select'?'translate':settings.tool);gizmo.setSpace(settings.space);
-    gizmo.setTranslationSnap(settings.snap?settings.translationSnap:null);gizmo.setRotationSnap(settings.snap?THREE.MathUtils.degToRad(settings.rotationSnap):null);gizmo.setScaleSnap(settings.snap?settings.scaleSnap:null);
+    gizmo.setTranslationSnap(settings.snap&&settings.snapMode==='grid'?settings.translationSnap:null);gizmo.setRotationSnap(settings.snap?THREE.MathUtils.degToRad(settings.rotationSnap):null);gizmo.setScaleSnap(settings.snap?settings.scaleSnap:null);
     grid.visible=active&&settings.grid;for(const record of records.values())applyRenderMode(record);updateSelection();
   }
   function updateSettings(input){
@@ -330,11 +333,32 @@ export function createSceneEditor({scene,camera,domElement,orbitControls,buildIn
     if(event.value){
       if(!dragEdit){dragEdit=beginEdit(`${{translate:'Move',rotate:'Rotate',scale:'Scale'}[settings.tool]??'Transform'} object`);}
       if(orbitControls&&dragOrbitState===null){dragOrbitState=orbitControls.enabled;orbitControls.enabled=false;}
-    }else{restoreOrbit();if(dragEdit){dragEdit=false;endEdit();}}
+      clearSurfaceSnap();
+      const record=selected();
+      if(record&&settings.snap&&settings.snapMode==='surface'&&settings.tool==='translate'){
+        root.updateWorldMatrix(true,true);
+        surfaceSession=createSurfaceSnapSession({object:record.content,targets:[...records.values()].filter(other=>other!==record).map(other=>other.content),distance:settings.snapDistance});
+      }
+    }else{clearSurfaceSnap();restoreOrbit();if(dragEdit){dragEdit=false;endEdit();}}
   };
   const onObjectChange=()=>{
     const record=selected();if(!active||!record)return;
-    const transform=transformValues(transformOf(record.node));applyTransform(record.node,transform);updateSelection();notify();
+    const transform=transformValues(transformOf(record.node));applyTransform(record.node,transform);
+    if(surfaceSession&&gizmo.dragging&&settings.tool==='translate'){
+      const axes=gizmo.axis??'XYZ',quaternion=record.node.getWorldQuaternion(new THREE.Quaternion());
+      const directions=[...axes].filter(axis=>'XYZ'.includes(axis)).map(axis=>new THREE.Vector3(axis==='X'?1:0,axis==='Y'?1:0,axis==='Z'?1:0));
+      if(settings.space==='local')directions.forEach(direction=>direction.applyQuaternion(quaternion));
+      const projectToGround=directions.length>0&&directions.every(direction=>Math.abs(direction.y)<1e-5);
+      const result=surfaceSession.snap({axes,space:settings.space,quaternion,projectToGround});
+      if(result?.offset?.isVector3&&result.offset.toArray().every(Number.isFinite)){
+        const position=record.node.getWorldPosition(new THREE.Vector3()).add(result.offset);
+        record.node.parent.worldToLocal(position);
+        applyTransform(record.node,transformValues({position:position.toArray()},transform));
+        const target=result.target;
+        lastSurfaceSnap={kind:result.kind??null,targetId:target?.parent?.userData?.sceneInstanceId??null,offset:result.offset.toArray()};
+      }
+    }
+    updateSelection();notify();
   };
   gizmo.addEventListener('dragging-changed',onDragging);gizmo.addEventListener('objectChange',onObjectChange);
   domElement.addEventListener('pointerdown',onPointerDown);domElement.addEventListener('pointermove',onPointerMove);domElement.addEventListener('pointerup',onPointerUp);domElement.addEventListener('pointercancel',onPointerCancel);document.addEventListener('keydown',onKeyDown);

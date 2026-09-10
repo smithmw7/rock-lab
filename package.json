@@ -39,7 +39,9 @@
     "verify:wood": "node scripts/verify-wood-geometry.mjs",
     "qa:wood": "node scripts/qa-wood.mjs",
     "verify:camera": "node scripts/verify-camera.mjs",
-    "qa:camera": "node scripts/qa-camera.mjs"
+    "qa:camera": "node scripts/qa-camera.mjs",
+    "verify:surface-snap": "node scripts/verify-surface-snap.mjs",
+    "qa:surface-snap": "node scripts/qa-surface-snap.mjs"
   },
   "dependencies": {
     "@dgreenheck/three-pinata": "2.0.1",

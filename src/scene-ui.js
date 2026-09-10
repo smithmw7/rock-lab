@@ -3,10 +3,12 @@ import './scene.css';
 const AXES = ['x', 'y', 'z'];
 const TRANSFORMS = ['position', 'rotation', 'scale'];
 const NUMBER_SETTINGS = {
+  'scene-snap-distance': 'snapDistance',
   'scene-translation-snap': 'translationSnap',
   'scene-rotation-snap': 'rotationSnap',
   'scene-scale-snap': 'scaleSnap',
 };
+const SNAP_DEFAULTS = { snapMode: 'surface', snapDistance: 0.3, translationSnap: 0.25, rotationSnap: 15, scaleSnap: 0.1 };
 const noOp = () => {};
 const formatNumber = value => Number.isFinite(Number(value)) ? String(Number(Number(value).toFixed(4))) : '';
 
@@ -26,7 +28,7 @@ export function createScenePanel({
   const rows = new Map();
   const controller = new AbortController();
   const listen = (node, event, handler) => node.addEventListener(event, handler, { signal: controller.signal });
-  let current = { active: false, objects: [], selection: null, selectedId: null, settings: {} };
+  let current = { active: false, objects: [], selection: null, selectedId: null, settings: { ...SNAP_DEFAULTS } };
   let previousSelection;
   let frameRequest;
 
@@ -58,6 +60,7 @@ export function createScenePanel({
     listen(byId(`scene-${key}`), 'change', event => onSettings({ [key]: event.target.checked }));
   }
   listen(byId('scene-space'), 'change', event => onSettings({ space: event.target.value }));
+  listen(byId('scene-snap-mode'), 'change', event => onSettings({ snapMode: event.target.value }));
   listen(byId('scene-render-mode'), 'change', event => onSettings({ renderMode: event.target.value }));
 
   function numericCommit(input, commit, fallback) {
@@ -151,7 +154,8 @@ export function createScenePanel({
   }
 
   function sync(snapshot) {
-    current = { ...snapshot, objects: snapshot.objects ?? [], settings: snapshot.settings ?? {} };
+    current = { ...snapshot, objects: snapshot.objects ?? [], settings: { ...SNAP_DEFAULTS, ...snapshot.settings } };
+    for (const [key, value] of Object.entries(SNAP_DEFAULTS)) current.settings[key] ??= value;
     const active = Boolean(current.active);
     const selection = current.selection;
     const history = current.history ?? {};
@@ -183,6 +187,10 @@ export function createScenePanel({
     });
     for (const key of ['snap', 'grid']) byId(`scene-${key}`).checked = Boolean(current.settings[key]);
     byId('scene-space').value = current.settings.space ?? 'world';
+    const gridSnap = current.settings.snapMode === 'grid';
+    byId('scene-snap-mode').value = gridSnap ? 'grid' : 'surface';
+    byId('scene-snap-distance-row').hidden = gridSnap;
+    byId('scene-translation-snap-row').hidden = !gridSnap;
     byId('scene-render-mode').value = current.settings.renderMode ?? 'shaded';
     for (const [id, key] of Object.entries(NUMBER_SETTINGS)) setValue(byId(id), formatNumber(current.settings[key]));
     syncObjects(current.objects, current.selectedId);
