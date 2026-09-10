@@ -140,19 +140,48 @@ try{
       const incoming=context.bodies().filter(body=>!before.has(body.handle));for(let index=0;index<incoming.length;index++){const body=incoming[index];body.setGravityScale(0,true);body.setTranslation({x:8+index*2,y:5,z:0},true);body.setLinvel({x:0,y:0,z:0},true);body.setAngvel({x:0,y:0,z:0},true);}
       const striker=incoming[0];striker.setRotation({x:0,y:0,z:0,w:1},true);const vertices=striker.collider(0).shape.vertices;let maxX=-Infinity;for(let i=0;i<vertices.length;i+=3)maxX=Math.max(maxX,vertices[i]);
       striker.setTranslation({x:-.6-maxX-.006,y:.5,z:0},true);striker.setLinvel({x:.2,y:0,z:0},true);
+      // This fixture teleports bodies outside the controller. Refresh collider
+      // poses so its pre-step hull query sees the new gentle-impact position.
+      context.world.propagateModifiedBodyPositionsToColliders();
       const awakened=new Set(),maximumMovement=new Map(settled.map(body=>[body.handle,0]));let contacts=0,firstContactSpeed=null,prematureRest=0;
       for(let frame=0;frame<18;frame++){const incomingSpeed=length(striker.linvel());context.lab.step(1/60);for(const body of settled){if(isActive(body))awakened.add(body.handle);if(frame<6&&body.userData?.resting)prematureRest++;maximumMovement.set(body.handle,Math.max(maximumMovement.get(body.handle),movement(pose(body),before.get(body.handle)).distance));context.world.contactPair(striker.collider(0),body.collider(0),manifold=>{if(manifold.numContacts()){contacts++;firstContactSpeed??=incomingSpeed;}});}}
       report.counterexamples.gentleSupportedWake={speed:.2,observationSeconds:.3,contacts,firstContactSpeed,prematureRest,awakened:awakened.size,movementPerBody:[...maximumMovement.values()]};assert.ok(contacts>0,'Gentle wake must include an actual collision');assert.ok(firstContactSpeed<=.25);assert.equal(prematureRest,0,'A gentle collision must earn a fresh quiet interval');assert.equal(awakened.size,settled.length,'The connected resting group must return to dynamic bodies');assert.ok([...maximumMovement.values()].some(distance=>distance>1e-5),'The gentle incoming fragment must physically move the pile');
     }finally{context.dispose();}
   }
-  // Breaking a fixed support must release the rested fragments it carries.
-  {
+  // Breaking a fixed support must release its carried pieces. The replacement
+  // pedestal halves can remain upright, so ordinary fracture alone does not
+  // guarantee an empty footprint or a particular fall distance.
+  for (const clearFootprint of [false, true]) {
     const source=new THREE.Group(),support=new THREE.Mesh(new THREE.BoxGeometry(1.2,2,1.2),outer),top=new THREE.Mesh(new THREE.BoxGeometry(1.1,.8,1.1),outer);support.position.y=1;top.position.y=2.4;source.add(support,top);
     const context=await setup('block',{method:'simple',fragmentCount:2,impulse:0,restitution:0,fracturePlanes:{x:true,y:false,z:false}},source);try{
       assert(await context.lab.tap(new THREE.Raycaster(new THREE.Vector3(0,2.4,8),new THREE.Vector3(0,0,-1))));simulate(context,8);const carried=context.bodies(),before=new Map(carried.map(body=>[body.handle,pose(body)]));assert.ok(carried.every(isResting));
-      context.lab.update({impulse:1.8});assert(await context.lab.tap(new THREE.Raycaster(new THREE.Vector3(0,1,8),new THREE.Vector3(0,0,-1))));const awakened=new Set();let maxFall=0;
+      context.lab.update({impulse:1.8});assert(await context.lab.tap(new THREE.Raycaster(new THREE.Vector3(0,1,8),new THREE.Vector3(0,0,-1))));
+      assert.ok(carried.every(isActive),'Breaking the intact support must immediately release every carried fragment');
+      const replacements=context.bodies().filter(body=>!before.has(body.handle));let minimumReplacementGap=null;
+      if(clearFootprint){
+        // Explicitly remove the replacement support before the next physics
+        // step. This tests actual support loss instead of assuming a blast
+        // makes the two new pedestal halves leave the carried pieces' footprint.
+        replacements.forEach((body,index)=>{body.setTranslation({x:index%2?4:-4,y:1,z:0},true);body.setLinvel({x:0,y:0,z:0},true);body.setAngvel({x:0,y:0,z:0},true);});
+        context.world.propagateModifiedBodyPositionsToColliders();
+        minimumReplacementGap=Math.min(...carried.flatMap(body=>replacements.map(replacement=>body.collider(0).contactCollider(replacement.collider(0),10)?.distance??10)));
+        assert.ok(minimumReplacementGap>.5,'The free-fall case must have no replacement support near the carried pieces');
+      }
+      const awakened=new Set();let maxFall=0;
       for(let frame=0;frame<240;frame++){context.lab.step(1/60);for(const body of carried){if(isActive(body))awakened.add(body.handle);maxFall=Math.max(maxFall,before.get(body.handle).p[1]-body.translation().y);}}
-      report.counterexamples.supportFractureReleases={carried:carried.length,awakened:awakened.size,maxFall};assert.equal(awakened.size,carried.length);assert.ok(maxFall>.1,'Rested fragments must fall when their support breaks');
+      assert.equal(awakened.size,carried.length);
+      if(clearFootprint){
+        report.counterexamples.supportFractureReleases={carried:carried.length,awakened:awakened.size,maxFall,minimumReplacementGap};
+        assert.ok(maxFall>.1,'Released fragments must fall when no replacement support remains below them');
+      }else{
+        let restedWithSupport=0;
+        for(const body of carried)if(isResting(body)){
+          let supported=false;
+          context.world.forEachCollider(other=>{if(other.handle===body.collider(0).handle)return;const contact=body.collider(0).contactCollider(other,.006);if(contact&&contact.distance<=.006&&-contact.normal1.y>.05)supported=true;});
+          assert.ok(supported,'A carried fragment may rest again only on a real upward-facing hull contact');restedWithSupport++;
+        }
+        report.counterexamples.supportFractureCanLandOnFragments={carried:carried.length,awakened:awakened.size,maxFall,restedWithSupport};
+      }
     }finally{context.dispose();}
   }
   {

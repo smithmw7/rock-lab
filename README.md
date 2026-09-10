@@ -80,6 +80,10 @@ npm run verify:workshop        # Tool variants, hollow vessels, and spline extre
 npm run verify:terrain         # Closed terrain meshes and actual fracture
 npm run verify:paths           # Fitted paving, spacing, world scale, and budgets
 npm run verify:fracture        # Actual fracture geometry and physics
+npm run verify:fracture-settling # Rest, impact wake, and support-removal regressions
+npm run verify:global-settling  # 143 preset, alternate-seed, and repeated-cut piles
+npm run verify:fracture-wake    # Thin hulls, tiny chips, overlap, and contact wake-up
+npm run qa:fracture-realtime   # Natural browser animation and visible settling
 npm run verify:scene           # Scene ownership, transforms, convex hulls, and budgets
 npm run verify:scene-presets   # Validate all eight editable example scenes
 npm run verify:scene-history   # Undo/Redo transactions, rollback, and resource ownership

@@ -10,7 +10,11 @@ import { chromium } from 'playwright';
 const project = fileURLToPath(new URL('..', import.meta.url));
 const output = path.join(project, 'output', 'audio');
 await fs.mkdir(output, { recursive: true });
-const report = { url: process.env.ROCK_LAB_URL || 'http://127.0.0.1:5207/', checks: {}, browserErrors: [], audioRequests: [] };
+// Every fresh page starts with destruction off so its first enable/break action
+// remains a real user gesture, independent of the application's default mode.
+const fixtureUrl = new URL(process.env.ROCK_LAB_URL || 'http://127.0.0.1:5207/');
+fixtureUrl.searchParams.set('fracture', '0');
+const report = { url: fixtureUrl.href, checks: {}, browserErrors: [], audioRequests: [] };
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 960 }, deviceScaleFactor: 1 });
 page.setDefaultTimeout(45000);
@@ -378,9 +382,14 @@ try {
   const fallbackPage = await browser.newPage({ viewport: { width: 1100, height: 800 } });
   await fallbackPage.addInitScript(installAudioProbe);
   const fallbackErrors = [];
+  // Discover both variants from actual playback so this fixture follows the
+  // selected public/private bank and any deployment base path.
+  const rockBreakClips = [...new Set(report.checks.variants['rock-break'].clips)];
+  assert.equal(rockBreakClips.length, 2);
+  const missingClipUrl = new URL(rockBreakClips[0], report.url).href;
   let intercepted = 0;
   fallbackPage.on('pageerror', error => fallbackErrors.push(error.message));
-  await fallbackPage.route('**/audio/breaks/rock-01.wav', async route => {
+  await fallbackPage.route(url => url.href === missingClipUrl, async route => {
     intercepted++;
     await route.fulfill({ status: 404, contentType: 'text/plain', body: 'Intentional audio QA missing-asset fixture.' });
   });
@@ -401,12 +410,12 @@ try {
   assert.equal(intercepted, 1);
   assert.equal(fallbackResult.before.loaded, 15);
   assert.equal(fallbackResult.before.failed, 1);
-  assert.ok(fallbackResult.before.errors.some(error => error.url.endsWith('/audio/breaks/rock-01.wav')));
+  assert.ok(fallbackResult.before.errors.some(error => new URL(error.url, report.url).href === missingClipUrl));
   assert.equal(fallbackResult.started, true, 'A missing variant must not silence the available alternate');
-  assert.ok(lastEvent(fallbackResult.after, 'break').clip.endsWith('rock-02.wav'));
+  assert.equal(lastEvent(fallbackResult.after, 'break').clip, rockBreakClips[1]);
   assert.ok(fallbackResult.probe.starts.some(start => start.peak > .001 && start.nonzero > 20));
   assert.deepEqual(fallbackErrors, []);
-  report.checks.missingAssetGraceful = { passed: true, intercepted, loaded: fallbackResult.before.loaded, failed: fallbackResult.before.failed, diagnostic: fallbackResult.before.errors, fallbackEvent: lastEvent(fallbackResult.after, 'break'), pageErrors: fallbackErrors };
+  report.checks.missingAssetGraceful = { passed: true, intercepted, missingClipUrl, loaded: fallbackResult.before.loaded, failed: fallbackResult.before.failed, diagnostic: fallbackResult.before.errors, fallbackEvent: lastEvent(fallbackResult.after, 'break'), pageErrors: fallbackErrors };
   await fallbackPage.close();
   report.passed = true;
   await fs.rm(path.join(output, 'failure.png'), { force: true });

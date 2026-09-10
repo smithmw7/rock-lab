@@ -1,5 +1,22 @@
 # Validation history
 
+## Global fracture settling
+
+This supersedes the earlier settling check that began observing debris after 30 seconds. The fix applies in the shared fracture controller to every generated material and shape.
+
+- Physics now steps at 120 Hz. Tiny fragments receive a minimum effective mass and principal inertia without changing their render or collider geometry. This deliberately stabilizes preview physics rather than conserving exact fragment mass through every recut.
+- New fragments can initially overlap the source assembly's approximate convex colliders. Those already-overlapping pairs are filtered until they separate, then normal collisions resume. Floor collisions remain active throughout. Supported, slow pieces with more than 20 mm of penetration against fixed geometry receive a bounded positional correction.
+- Rest qualification combines current upward support, recent pose motion, and the contact group's mass and inertia. Bounded contact chatter no longer prevents a whole pile from resting. Current hull contacts, contact-point closing speed, and neighbor separation history distinguish solver noise from actual incoming impacts. Resting groups still wake on real hits, recuts, removed supports, and physics changes; unsupported and frictionless pieces remain dynamic.
+- `verify:global-settling` passes all 143 cases: all 56 presets at both eight fragments and the public default count, ten alternate seeds, and 21 four-cut sequences across default, smoother, and rougher physics. All 7,611 final fragments retain their identities and become completely still by eight seconds; the slowest case rests at 7.934 seconds. Every position and rotation remains exactly unchanged during the full four-second observation window, with floor penetration within the 2 mm tolerance. The same suite found 79 failing cases before this fix.
+- `verify:fracture-settling` passes 12 piles and nine counterexamples. The support fixture separately verifies a fractured pedestal that still genuinely supports debris and a cleared footprint that must let debris fall. `verify:fracture-wake` passes ten focused cases covering thin hulls, genuine gentle impacts, separated-neighbor reentry, support dependency cascades, lateral-only contact, tiny-chip inertia, and restoration of initially filtered collisions.
+- The isolated `qa:fracture-realtime` run uses natural browser frames, with no manual time advancement. All five cases pass: default tap rests at 2.57 seconds, repeat tap at 3.89, the 95-fragment boulder at 4.21, thin plate at 0.96, and the 153-fragment wall at 5.56. Every fragment remains exactly still throughout seconds 10–13, with its identity preserved and floor penetration within 2 mm. Screenshots were inspected; no browser errors or warnings occurred.
+- Dense destruction still briefly costs frame rate on the tested desktop: the boulder begins at 17 FPS, and the wall at 14–16 FPS for its first three seconds before recovering to 60 FPS. The wall advances 12.199 seconds of physics in 13.006 seconds of real time and meets the unchanged ten-second settling deadline. These measurements do not establish physical-device performance.
+- Strict browser regressions pass four pointer/button pile cases plus pause/resume, turntable without body movement, recutting sleeping debris, resettling, and reset. The standard web-game client also exercised Break asset twice; screenshots and text state were inspected. Nested-path publication checks pass default-on fracture and public first-tap audio, reset, recipe downloads, gallery, scene Undo/Redo, and preset variations.
+- All 15 audio browser groups pass with zero browser errors. The audio fixture explicitly starts with destruction off for its enable-gesture test and derives missing-clip URLs from actual playback, supporting either the local or public sound bank. Audio runtime behavior is unchanged.
+- Geometry verification, all 90 existing fracture cases, the production build, and public-asset exclusion checks pass. Both new Node regression suites run in Pages CI. The global suite records one Pinata triangulation warning while all generated-fragment checks pass; Vite retains its existing large-chunk warning.
+
+Checked September 10, 2026.
+
 ## Studio expansion and scene Undo/Redo
 
 - Added 50 authored world presets for 56 total, with Randomize first, horizontal scrolling, keyboard/touch navigation, and repeat-tap seed variations in Object and Scene. Fracture starts enabled and preset changes preserve its current setting. Toggle hit areas are 56 by 44 pixels.

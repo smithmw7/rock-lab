@@ -32,7 +32,10 @@
     "verify:studio-presets": "node scripts/verify-studio-presets.mjs",
     "qa:studio-expansion": "node scripts/qa-studio-expansion.mjs",
     "verify:scene-history": "node scripts/verify-scene-history.mjs",
-    "qa:scene-history": "node scripts/qa-scene-history.mjs"
+    "qa:scene-history": "node scripts/qa-scene-history.mjs",
+    "verify:global-settling": "node scripts/verify-global-settling.mjs",
+    "verify:fracture-wake": "node scripts/verify-fracture-wake.mjs",
+    "qa:fracture-realtime": "node scripts/qa-fracture-realtime.mjs"
   },
   "dependencies": {
     "@dgreenheck/three-pinata": "2.0.1",

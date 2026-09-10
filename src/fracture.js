@@ -52,6 +52,8 @@ const initializeRapier = () => rapierReady ||= import('@dimforge/rapier3d-compat
   await RAPIER.init();
   return RAPIER;
 });
+const PHYSICS_STEP = 1 / 120;
+const MOTION_SAMPLES = Math.round(0.75 / PHYSICS_STEP);
 const triangleCount = geometry => (geometry.index?.count || geometry.attributes.position.count) / 3;
 
 /** Independent, disposable destruction preview. Source meshes remain untouched. */
@@ -59,7 +61,9 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
   await initializeRapier();
   const container = new THREE.Group(); container.name = 'Rock Lab destruction'; scene.add(container);
   const world = new RAPIER.World({ x: 0, y: -FRACTURE_DEFAULTS.gravity, z: 0 });
-  world.timestep = 1 / 60;
+  world.timestep = PHYSICS_STEP;
+  world.numSolverIterations = 8;
+  world.numInternalPgsIterations = 2;
   const eventQueue = new RAPIER.EventQueue(true);
   const floor = world.createCollider(RAPIER.ColliderDesc.cuboid(30, 0.1, 30).setTranslation(0, -0.1, 0).setFriction(0.65).setRestitution(0.18));
   const records = new Map();
@@ -96,6 +100,27 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
     if (!outer?.isMaterial || !inner?.isMaterial) throw new TypeError('Each fracture part needs valid outer and inner materials.');
     return { outerMaterial: outer, innerMaterial: inner };
   };
+  // Source assemblies and their convex approximations can overlap before a
+  // cut. Those pairs begin collision-free until their hulls separate; future
+  // encounters use normal physics. The floor is never excluded.
+  const quarantinedPairs = new Map();
+  const pairKey = (a, b) => a < b ? `${a}:${b}` : `${b}:${a}`;
+  const contactHooks = {
+    filterContactPair: (a, b) => quarantinedPairs.has(pairKey(a, b)) ? null : RAPIER.SolverFlags.COMPUTE_IMPULSE,
+    filterIntersectionPair: () => true,
+  };
+  function refreshQuarantine() {
+    for (const [key, pair] of quarantinedPairs) {
+      const a = colliderRecords.get(pair[0]), b = colliderRecords.get(pair[1]);
+      if (!a || !b) { quarantinedPairs.delete(key); continue; }
+      const pa = a.body.translation(), pb = b.body.translation();
+      const centerDistance = Math.hypot(pa.x - pb.x, pa.y - pb.y, pa.z - pb.z);
+      const reach = a.wakeRadius + b.wakeRadius;
+      const contact = a.collider.contactCollider(b.collider, centerDistance + reach + .01);
+      if (contact ? contact.distance > .003 : centerDistance > reach + .003) quarantinedPairs.delete(key);
+    }
+  }
+
   const clearContactEvents = () => {
     eventQueue.clear(); incomingMotion.clear(); pendingImpacts.clear(); collisionCooldown.clear(); collisionDispatches.length = 0; simulationTime = 0;
   };
@@ -107,6 +132,8 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
   };
   const removeRecord = record => {
     wakeRestGroup(record);
+    wakeSupportedBy(new Set([record.collider.handle]));
+    for (const [key, pair] of quarantinedPairs) if (pair.includes(record.collider.handle)) quarantinedPairs.delete(key);
     colliderRecords.delete(record.collider.handle); incomingMotion.delete(record.collider.handle);
     pendingImpacts.delete(record.mesh.uuid); collisionCooldown.delete(record.mesh.uuid);
     if (record.body?.isValid()) world.removeRigidBody(record.body);
@@ -116,12 +143,20 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
   const registerRecord = record => {
     records.set(record.mesh.uuid, record); colliderRecords.set(record.collider.handle, record);
     record.createdAt = simulationTime;
+    record.mass = record.body.mass();
     record.mesh.geometry.computeBoundingSphere();
     record.contactRadius = record.mesh.geometry.boundingSphere.radius;
     record.hullVertices = record.collider.shape.vertices;
     record.wakeRadius = record.contactRadius + record.mesh.geometry.boundingSphere.center.length();
+    if (record.generation > 0) for (const other of records.values()) {
+      if (other === record) continue;
+      const contact = record.collider.contactCollider(other.collider, 0);
+      if (contact && contact.distance < -.002) quarantinedPairs.set(pairKey(record.collider.handle, other.collider.handle), [record.collider.handle, other.collider.handle]);
+    }
     record.restTime = 0;
     record.restGroup = null;
+    record.restNeighbors = new Set();
+    record.contactMotion = [];
     record.body.userData = { pieceId: record.mesh.uuid, generation: record.generation, resting: false };
     record.restPosition = new THREE.Vector3();
     record.restRotation = new THREE.Quaternion();
@@ -137,8 +172,22 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
     bodyDescriptor.setTranslation(mesh.position.x, mesh.position.y, mesh.position.z).setRotation(mesh.quaternion);
     const body = world.createRigidBody(bodyDescriptor);
     try {
-      if (dynamic) descriptor.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(0);
+      if (dynamic) descriptor.setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS).setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(0);
       const collider = world.createCollider(descriptor.setFriction(options.friction).setRestitution(options.restitution).setDensity(1), body);
+      if (dynamic) {
+        // Tiny clipping slivers otherwise create million-to-one mass ratios
+        // and nearly singular rotation axes at contact. Condition only their
+        // physics properties; the visible fragment and collider stay intact.
+        const originalMass = body.mass(), mass = Math.max(0.01, originalMass);
+        const inertia = body.principalInertia(), ratio = mass / Math.max(originalMass, 1e-12);
+        const minimumInertia = mass * 0.02 * 0.02;
+        collider.setMassProperties(mass, body.localCom(), {
+          x: Math.max(inertia.x * ratio, minimumInertia),
+          y: Math.max(inertia.y * ratio, minimumInertia),
+          z: Math.max(inertia.z * ratio, minimumInertia),
+        }, body.principalInertiaLocalFrame());
+        body.recomputeMassPropertiesFromColliders();
+      }
       return { body, collider };
     } catch (error) { world.removeRigidBody(body); throw error; }
   };
@@ -357,13 +406,91 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
     }
   }
 
+  function contactAtCurrentPose(first, second, prediction) {
+    if (quarantinedPairs.has(pairKey(first.handle, second.handle))) return null;
+    let contact = first.contactCollider(second, prediction);
+    // Keep the loaded-anchor fallback even when GJK succeeds: thin clipped
+    // hulls can return a shallower GJK contact than the solver's loaded face.
+    // Read each collider pose once and avoid allocating vectors per anchor.
+    let firstPosition, firstRotation, secondPosition, secondRotation;
+    const p1 = { x: 0, y: 0, z: 0 }, p2 = { x: 0, y: 0, z: 0 };
+    const transform = (position, rotation, point, out) => {
+      const tx = 2 * (rotation.y * point.z - rotation.z * point.y);
+      const ty = 2 * (rotation.z * point.x - rotation.x * point.z);
+      const tz = 2 * (rotation.x * point.y - rotation.y * point.x);
+      out.x = (point.x + rotation.w * tx + rotation.y * tz - rotation.z * ty) + position.x;
+      out.y = (point.y + rotation.w * ty + rotation.z * tx - rotation.x * tz) + position.y;
+      out.z = (point.z + rotation.w * tz + rotation.x * ty - rotation.y * tx) + position.z;
+    };
+    world.contactPair(first, second, (manifold, flipped) => {
+      const normal = manifold.normal();
+      for (let i = 0; i < manifold.numContacts(); i++) {
+        if (manifold.contactImpulse(i) <= 0) continue;
+        const a = manifold.localContactPoint1(i), b = manifold.localContactPoint2(i);
+        if (!a || !b) continue;
+        if (!firstPosition) {
+          firstPosition = first.translation(); firstRotation = first.rotation();
+          secondPosition = second.translation(); secondRotation = second.rotation();
+        }
+        transform(flipped ? secondPosition : firstPosition, flipped ? secondRotation : firstRotation, a, p1);
+        transform(flipped ? firstPosition : secondPosition, flipped ? firstRotation : secondRotation, b, p2);
+        const dx = p2.x - p1.x, dy = p2.y - p1.y, dz = p2.z - p1.z;
+        const distance = dx * normal.x + dy * normal.y + dz * normal.z;
+        const tangentSquared = Math.max(0, dx * dx + dy * dy + dz * dz - distance * distance);
+        if (distance > prediction || tangentSquared > 0.02 * 0.02) continue;
+        if (!contact || distance < contact.distance) {
+          const point1 = flipped ? p2 : p1, point2 = flipped ? p1 : p2;
+          contact = {
+            distance,
+            point1: { x: point1.x, y: point1.y, z: point1.z },
+            point2: { x: point2.x, y: point2.y, z: point2.z },
+            normal1: { x: normal.x * (flipped ? -1 : 1), y: normal.y * (flipped ? -1 : 1), z: normal.z * (flipped ? -1 : 1) },
+          };
+        }
+      }
+    });
+    return contact;
+  }
+
+  function wakeSupportedBy(handles) {
+    for (const record of records.values()) {
+      if (record.restGroup && [...record.restGroup.anchors].some(handle => handles.has(handle))) wakeRestGroup(record);
+    }
+  }
+
   function wakeRestGroup(record) {
-    if (!record.restGroup) return;
-    for (const member of record.restGroup) {
-      member.restGroup = null; member.restTime = 0;
-      member.body.userData.resting = false;
+    const group = record.restGroup;
+    if (!group) return;
+    const handles = new Set();
+    for (const member of group) {
+      member.restGroup = null; member.restTime = 0; member.islandPose=null;member.islandTime=0; member.restNeighbors.clear(); member.restNeighborSeparation?.clear(); member.contactMotion.length = 0;
+      member.body.userData.resting = false; handles.add(member.collider.handle);
       member.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
       member.body.setLinearDamping(0.18); member.body.setAngularDamping(0.3);
+    }
+    // Upper resting components depend on their actual support, not proximity.
+    wakeSupportedBy(handles);
+  }
+
+  function releaseSeparatedRestNeighbors(targets) {
+    for (const { record } of targets) {
+      const separatedAt = record.restNeighborSeparation ||= new Map();
+      for (const handle of record.restNeighbors) {
+        const neighbor = colliderRecords.get(handle);
+        const contact = neighbor && contactAtCurrentPose(record.collider, neighbor.collider, 0.08);
+        if (!contact) {
+          // Large or permanent separation starts a new physical encounter.
+          record.restNeighbors.delete(handle); separatedAt.delete(handle);
+        } else if (contact.distance <= 0.02) {
+          // A brief solver gap can close without repeatedly waking the pile.
+          separatedAt.delete(handle);
+        } else if (!separatedAt.has(handle)) {
+          separatedAt.set(handle, simulationTime);
+        } else if (simulationTime - separatedAt.get(handle) >= 0.15) {
+          // Small but sustained separation must also permit a fresh impact.
+          record.restNeighbors.delete(handle); separatedAt.delete(handle);
+        }
+      }
     }
   }
 
@@ -371,124 +498,233 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
     const resting = [...records.values()].filter(record => record.restGroup);
     if (!resting.length) return;
     const targets = resting.map(record => ({ record, position: record.body.translation() }));
+    // Separation invalidates an existing-contact latch even at zero velocity
+    // or outside the wake broadphase, so later gentle re-entry still wakes.
+    releaseSeparatedRestNeighbors(targets);
     for (const record of records.values()) {
       if (record.generation === 0 || record.restGroup || record.body.isSleeping()) continue;
       const velocity = record.body.linvel(), angular = record.body.angvel();
       const speed = Math.hypot(velocity.x, velocity.y, velocity.z) + Math.hypot(angular.x, angular.y, angular.z) * record.wakeRadius;
-      if (speed < 0.05 && simulationTime - record.createdAt > 0.35) continue;
+      if (speed < 0.05) continue;
       const position = record.body.translation();
       for (const target of targets) {
         if (!target.record.restGroup) continue;
-        const reach = record.wakeRadius + target.record.wakeRadius + speed * dt + 0.04;
+        const reach = record.wakeRadius + target.record.wakeRadius + speed * dt + 0.006;
         const dx = position.x - target.position.x, dy = position.y - target.position.y, dz = position.z - target.position.z;
-        if (dx * dx + dy * dy + dz * dz <= reach * reach) wakeRestGroup(target.record);
+        if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
+        // Bounding spheres are only a broadphase. Long thin shards can be
+        // meters apart inside overlapping spheres, or move away from a pile.
+        const contact = contactAtCurrentPose(record.collider, target.record.collider, Math.max(0.02, speed * dt + 0.006));
+        if (!contact) continue;
+        // A neighbor already pressing on this piece when it settled may still
+        // be shedding small solver tremors. Let that contact finish settling;
+        // a new collision, separation/re-entry, or substantial impact wakes it.
+        const atContact = record.body.velocityAtPoint(contact.point1);
+        const closing = atContact.x * contact.normal1.x + atContact.y * contact.normal1.y + atContact.z * contact.normal1.z;
+        if (target.record.restNeighbors.has(record.collider.handle) && closing * Math.sqrt(record.mass / Math.max(0.000001, target.record.restGroup.mass)) < 0.7) continue;
+        if (closing > 0.12 && contact.distance <= 0.006 + closing * dt) wakeRestGroup(target.record);
       }
     }
   }
 
   function settleRestingContacts(dt) {
     const dynamic = [...records.values()].filter(record => record.generation > 0 && !record.restGroup);
-    for (const record of dynamic) if (!record.body.isSleeping()) {
+    for (const record of dynamic) {
       record.body.setAngularDamping(0.3); record.body.setLinearDamping(0.18);
     }
-    // Free flight and deliberately slippery surfaces keep Rapier's ordinary
-    // behavior. This assistance only handles the last small contact tremor.
+    // Free flight and deliberately slippery surfaces retain ordinary physics.
     if (options.gravity <= 0 || options.friction < 0.1) {
-      for (const record of dynamic) record.restTime = 0;
+      for (const record of dynamic) { record.restTime = 0; record.contactMotion.length = 0; record.islandPose = null; record.islandTime = 0; }
       return;
     }
-    if (!dynamic.some(record => !record.body.isSleeping())) {
-      for (const record of dynamic) record.restTime = 0;
-      return;
-    }
-
-    const graph = new Map(dynamic.map(record => [record, { neighbors: new Set(), restGroups: new Set(), supported: false }]));
+    const graph = new Map(dynamic.map(record => [record, { neighbors: new Set(), touching: new Set(), dependents: new Set(), anchors: new Set(), supported: false }]));
     for (const record of dynamic) {
-      const node = graph.get(record), neighbors = [];
-      world.contactPairsWith(record.collider, other => neighbors.push(other));
-      for (const other of neighbors) {
+      const node = graph.get(record);
+      // Analytic floor support also covers near-degenerate slivers for which
+      // the convex contact query fails despite a resting floor manifold.
+      const p = record.body.translation(), q = record.body.rotation();
+      const rowX = 2 * (q.x * q.y + q.w * q.z), rowY = 1 - 2 * (q.x * q.x + q.z * q.z), rowZ = 2 * (q.y * q.z - q.w * q.x);
+      let minimumY = Infinity;
+      for (let i = 0; i < record.hullVertices.length; i += 3) minimumY = Math.min(minimumY, p.y + rowX * record.hullVertices[i] + rowY * record.hullVertices[i + 1] + rowZ * record.hullVertices[i + 2]);
+      if (minimumY <= 0.006) node.anchors.add(floor.handle);
+      world.contactPairsWith(record.collider, other => {
         const neighbor = colliderRecords.get(other.handle);
+        // Manifold distances retain cached contact-generation values. Query
+        // the current hulls so an earlier predictive gap cannot permanently
+        // disqualify a fragment that is now resting on the floor.
+        const contact = contactAtCurrentPose(record.collider, other, 0.006);
+        if (!contact || contact.distance > 0.006) return;
         world.contactPair(record.collider, other, (manifold, flipped) => {
-          let touching = false;
-          for (let i = 0; i < manifold.numContacts(); i++) {
-            const distance = manifold.contactDist(i);
-            // Predictive contacts can exist centimetres apart. Require a real
-            // loaded contact within Rapier's 5 mm tolerance plus 1 mm margin.
-            if (distance <= 0.006 && manifold.contactImpulse(i) > 0) touching = true;
-          }
-          if (!touching) return;
-          if (graph.has(neighbor)) node.neighbors.add(neighbor);
-          else {
-            if (neighbor?.restGroup) node.restGroups.add(neighbor.restGroup);
-            if (manifold.normal().y * (flipped ? 1 : -1) > 0.25 && manifold.friction() >= 0.1) node.supported = true;
+          let loaded = false;
+          for (let i = 0; i < manifold.numContacts(); i++) if (manifold.contactImpulse(i) > 0) loaded = true;
+          if (!loaded && contact.distance > 0.002) return;
+          if (neighbor?.generation > 0) node.touching.add(neighbor);
+          const reactionY = manifold.normal().y * (flipped ? 1 : -1);
+          if (graph.has(neighbor)) {
+            node.neighbors.add(neighbor); graph.get(neighbor).neighbors.add(record);
+            // Contact groups remain undirected, but support travels upward.
+            // A shard beside a grounded block cannot hang from its side.
+            if (reactionY > 0.05) graph.get(neighbor).dependents.add(record);
+            else if (reactionY < -0.05) node.dependents.add(neighbor);
+          } else if (reactionY > 0.05 && manifold.friction() >= 0.1) {
+            node.anchors.add(other.handle);
           }
         });
-      }
+      });
     }
-
-    // Quiet a supported contact group together. A still piece beside a moving
-    // one must remain responsive; touching airborne pieces have no anchor.
-    const visited = new Set();
+    // Contact damping may propagate through a grounded pile. Qualification
+    // below uses only quiet components, so one rattling chip cannot veto all
+    // the already-stable pieces beside it or pin a body on a moving support.
+    const supported = [...dynamic].filter(record => graph.get(record).anchors.size);
+    for (const record of supported) graph.get(record).supported = true;
+    for (let i = 0; i < supported.length; i++) for (const neighbor of graph.get(supported[i]).dependents) {
+      if (!graph.get(neighbor).supported) { graph.get(neighbor).supported = true; supported.push(neighbor); }
+    }
+    // Resolve deep numerical overlap without turning it into kinetic energy.
+    // Only slow, mature bodies in an actually supported contact island qualify.
+    // Airborne bodies and energetic incoming impacts keep their solver motion.
+    for (const record of dynamic) {
+      const node = graph.get(record), body = record.body, velocity = body.linvel();
+      if (!node.supported || simulationTime - record.createdAt < 0.35 || Math.hypot(velocity.x, velocity.y, velocity.z) > 0.65) continue;
+      let deepest = null;
+      world.contactPairsWith(record.collider, other => {
+        if (quarantinedPairs.has(pairKey(record.collider.handle, other.handle))) return;
+        const neighbor = colliderRecords.get(other.handle);
+        if (neighbor && neighbor.body.isDynamic()) return;
+        const contact = record.collider.contactCollider(other, 0);
+        if (contact && contact.distance < -0.02 && (!deepest || contact.distance < deepest.distance)) deepest = contact;
+      });
+      if (!deepest) continue;
+      const correction = Math.min(0.012, (-deepest.distance - 0.004) * 0.35);
+      const p = body.translation(), n = deepest.normal1;
+      body.setTranslation({x:p.x-n.x*correction,y:p.y-n.y*correction,z:p.z-n.z*correction}, false);
+      const inward = velocity.x*n.x+velocity.y*n.y+velocity.z*n.z;
+      if (inward > 0) body.setLinvel({x:velocity.x-n.x*inward,y:velocity.y-n.y*inward,z:velocity.z-n.z*inward},false);
+    }
+    const qualified = new Set();
+    for (const record of dynamic) {
+      const node = graph.get(record), velocity = record.body.linvel(), angular = record.body.angvel();
+      const position = record.body.translation(), rotation = record.body.rotation();
+      const speed = Math.hypot(velocity.x, velocity.y, velocity.z);
+      const surfaceSpeed = Math.hypot(angular.x, angular.y, angular.z) * record.contactRadius;
+      const mature = simulationTime - record.createdAt >= 0.35;
+      if (node.supported && speed < 0.65 && mature) {
+        record.body.setAngularDamping(24); record.body.setLinearDamping(6);
+      }
+      // A constrained shard may reverse direction every solver step without
+      // ever passing an instantaneous velocity threshold. Distinguish that
+      // bounded chatter from travel using a recent supported pose window.
+      const history = record.contactMotion;
+      if (!mature) history.length = 0;
+      else {
+        history.push({ p: { ...position }, q: { ...rotation }, supported: node.supported });
+        if (history.length > MOTION_SAMPLES) history.shift();
+      }
+      if (node.supported && history.length === MOTION_SAMPLES && history.filter(pose => pose.supported).length >= MOTION_SAMPLES * 0.8) {
+        const first = history[0];
+        const distance = (a, b) => {
+          const dot = Math.abs(a.q.x * b.q.x + a.q.y * b.q.y + a.q.z * b.q.z + a.q.w * b.q.w);
+          const norm = Math.hypot(a.q.x, a.q.y, a.q.z, a.q.w) * Math.hypot(b.q.x, b.q.y, b.q.z, b.q.w);
+          return Math.hypot(a.p.x - b.p.x, a.p.y - b.p.y, a.p.z - b.p.z)
+            + 2 * Math.acos(Math.min(1, dot / norm)) * record.contactRadius;
+        };
+        let excursion = 0, path = 0;
+        for (let i = 1; i < history.length; i++) {
+          excursion = Math.max(excursion, distance(first, history[i]));
+          path += distance(history[i - 1], history[i]);
+        }
+        const net = distance(first, history.at(-1));
+        const limit = Math.min(0.12, Math.max(0.012, record.contactRadius * 0.3));
+        if (excursion < limit && net < limit * 0.45 && path > 0.005 && net < path * 0.15) qualified.add(record);
+      }
+      if (!node.supported || speed > 0.5 || surfaceSpeed > 1.0 || !mature) {
+        record.restTime = 0; continue;
+      }
+      const dot = Math.abs(record.restRotation.x * rotation.x + record.restRotation.y * rotation.y + record.restRotation.z * rotation.z + record.restRotation.w * rotation.w);
+      const norm = record.restRotation.length() * Math.hypot(rotation.x, rotation.y, rotation.z, rotation.w);
+      const turn = 2 * Math.sqrt(Math.max(0, 1 - Math.min(1, dot / norm) ** 2)) * record.contactRadius;
+      const travel = Math.hypot(position.x - record.restPosition.x, position.y - record.restPosition.y, position.z - record.restPosition.z) + turn;
+      const envelope = Math.min(0.04, Math.max(0.005, record.contactRadius * 0.08));
+      if (record.restTime === 0 || travel > envelope) {
+        record.restPosition.set(position.x, position.y, position.z);
+        record.restRotation.set(rotation.x, rotation.y, rotation.z, rotation.w);
+        record.restTime = dt;
+      } else record.restTime += dt;
+      if (record.restTime >= 0.4) qualified.add(record);
+    }
+    // Also qualify a supported island atomically. Real mass and angular
+    // inertia distinguish a tiny constrained chip from motion of the pile.
+    // Every unqualified piece must still stay within its own small pose
+    // envelope, preventing a heavy anchor from hiding a travelling shard.
+    const islandVisited = new Set();
     for (const first of dynamic) {
+      if (islandVisited.has(first)) continue;
+      const island = [], anchors = new Set(), queue = [first];
+      while (queue.length) {
+        const record = queue.pop(); if (islandVisited.has(record)) continue;
+        islandVisited.add(record); island.push(record);
+        for (const handle of graph.get(record).anchors) anchors.add(handle);
+        for (const neighbor of graph.get(record).neighbors) if (!islandVisited.has(neighbor)) queue.push(neighbor);
+      }
+      const anchored = new Set();
+      for (const handle of anchors) { const anchor=colliderRecords.get(handle); if(anchor?.restGroup)for(const member of anchor.restGroup)anchored.add(member); }
+      let mass=[...anchored].reduce((sum,record)=>sum+record.mass,0),energy=0,motion=0,ready=anchors.size>0,restart=false;
+      for(const record of island){
+        const body=record.body,p=body.translation(),q=body.rotation(),c=body.worldCom(),v=body.linvel(),w=body.angvel(),inertia=body.effectiveAngularInertia();
+        const quadratic=(x,y,z)=>inertia.m11*x*x+inertia.m22*y*y+inertia.m33*z*z+2*(inertia.m12*x*y+inertia.m13*x*z+inertia.m23*y*z);
+        mass+=record.mass;
+        const mature=simulationTime-record.createdAt>=.35;
+        ready &&= mature && graph.get(record).supported;
+        if(!record.islandPose){record.islandPose={p:{...p},q:{...q},c:{...c}};record.islandTime=0;restart=true;}
+        const previous=record.islandPose,delta=new THREE.Quaternion(q.x,q.y,q.z,q.w).multiply(new THREE.Quaternion(previous.q.x,previous.q.y,previous.q.z,previous.q.w).conjugate());
+        const dx=c.x-previous.c.x,dy=c.y-previous.c.y,dz=c.z-previous.c.z;
+        const rotationalDistance=2*Math.hypot(delta.x,delta.y,delta.z)*record.contactRadius;
+        const pointTravel=Math.hypot(p.x-previous.p.x,p.y-previous.p.y,p.z-previous.p.z)+rotationalDistance;
+        if(!qualified.has(record)){
+          energy+=record.mass*(v.x*v.x+v.y*v.y+v.z*v.z)+quadratic(w.x,w.y,w.z);
+          motion+=record.mass*(dx*dx+dy*dy+dz*dz)+4*quadratic(delta.x,delta.y,delta.z);
+          const pointSpeed=Math.hypot(v.x,v.y,v.z)+Math.hypot(w.x,w.y,w.z)*record.contactRadius;
+          ready &&= pointSpeed<1.8;
+          if(pointTravel>Math.min(.06,Math.max(.006,record.contactRadius*.15)))restart=true;
+        }
+      }
+      const rmsSpeed=Math.sqrt(energy/Math.max(mass,1e-9)),rmsMotion=Math.sqrt(motion/Math.max(mass,1e-9));
+      ready &&= rmsSpeed<.24;
+      restart ||= rmsMotion>.024;
+      for(const record of island){
+        if(!ready||restart){const p=record.body.translation(),q=record.body.rotation(),c=record.body.worldCom();record.islandPose={p:{...p},q:{...q},c:{...c}};record.islandTime=ready?dt:0;}
+        else record.islandTime=(record.islandTime||0)+dt;
+      }
+      if(ready&&island.every(record=>record.islandTime>=.4))for(const record of island)qualified.add(record);
+    }
+    const visited = new Set();
+    for (const first of qualified) {
       if (visited.has(first)) continue;
-      const group = [], queue = [first], restingNeighbors = new Set(); let supported = false;
+      const group = new Set(), anchors = new Set(), queue = [first];
       while (queue.length) {
         const record = queue.pop(); if (visited.has(record)) continue;
-        visited.add(record); group.push(record);
-        const node = graph.get(record); supported ||= node.supported;
-        for (const restGroup of node.restGroups) restingNeighbors.add(restGroup);
-        for (const neighbor of node.neighbors) if (!visited.has(neighbor)) queue.push(neighbor);
+        visited.add(record); group.add(record);
+        const node = graph.get(record);
+        for (const handle of node.anchors) anchors.add(handle);
+        for (const neighbor of node.neighbors) if (qualified.has(neighbor) && !visited.has(neighbor)) queue.push(neighbor);
       }
-      let ready = supported;
+      if (!anchors.size) continue;
+      group.anchors = anchors;
+      group.mass = [...group].reduce((mass, record) => mass + record.mass, 0);
       for (const record of group) {
-        if (record.body.isSleeping()) { record.restTime = 0; continue; }
-        const velocity = record.body.linvel(), angular = record.body.angvel();
-        const position = record.body.translation(), rotation = record.body.rotation();
-        const speed = Math.hypot(velocity.x, velocity.y, velocity.z);
-        const surfaceSpeed = Math.hypot(angular.x, angular.y, angular.z) * record.contactRadius;
-        // Contact resistance damps the last rocking motion of curved shards.
-        // Normal damping returns as soon as a piece leaves support or speeds up.
-        if (supported && speed < 0.25 && simulationTime - record.createdAt >= 0.35) {
-          record.body.setAngularDamping(18); record.body.setLinearDamping(0.8);
-        }
-        if (!supported || speed > 0.25 || surfaceSpeed > 0.65 || simulationTime - record.createdAt < 0.35) {
-          record.restTime = 0; ready = false; continue;
-        }
-        const dot = Math.abs(record.restRotation.x * rotation.x + record.restRotation.y * rotation.y + record.restRotation.z * rotation.z + record.restRotation.w * rotation.w);
-        const norm = record.restRotation.length() * Math.hypot(rotation.x, rotation.y, rotation.z, rotation.w);
-        const turn = 2 * Math.sqrt(Math.max(0, 1 - Math.min(1, dot / norm) ** 2)) * record.contactRadius;
-        const travel = Math.hypot(position.x - record.restPosition.x, position.y - record.restPosition.y, position.z - record.restPosition.z) + turn;
-        const envelope = Math.min(0.04, Math.max(0.004, record.contactRadius * 0.06));
-        if (record.restTime === 0 || travel > envelope) {
-          record.restPosition.set(position.x, position.y, position.z);
-          record.restRotation.set(rotation.x, rotation.y, rotation.z, rotation.w);
-          record.restTime = dt;
-        } else record.restTime += dt;
-        if (record.restTime < 0.65) ready = false;
-      }
-      if (ready) {
-        const restGroup = new Set(group);
-        for (const neighbors of restingNeighbors) for (const record of neighbors) {
-          for (const member of record.restGroup || [record]) restGroup.add(member);
-        }
-        // Hold the settled pose with a fixed body. Wake the connected group
-        // before an approaching fragment collides, or when a member is cut.
-        // This avoids Rapier's unreliable manual-sleep transition on debris.
-        for (const record of restGroup) {
-          // Convex approximations can remain interlocked after their motion
-          // stops. Qualify by stable poses instead of requiring zero overlap,
-          // but never preserve a pose that leaves a shard below the floor.
-          const p = record.body.translation(), q = record.body.rotation();
-          const rowX = 2 * (q.x * q.y + q.w * q.z), rowY = 1 - 2 * (q.x * q.x + q.z * q.z), rowZ = 2 * (q.y * q.z - q.w * q.x);
-          let minimumY = Infinity;
-          for (let i = 0; i < record.hullVertices.length; i += 3) {
-            minimumY = Math.min(minimumY, p.y + rowX * record.hullVertices[i] + rowY * record.hullVertices[i + 1] + rowZ * record.hullVertices[i + 2]);
-          }
-          if (minimumY < -0.002) record.body.setTranslation({ x: p.x, y: p.y - minimumY - 0.002, z: p.z }, false);
-          record.body.setBodyType(RAPIER.RigidBodyType.Fixed, false);
-          record.restGroup = restGroup; record.restTime = 0;
-          record.body.userData.resting = true;
-        }
+        // Preserve the exact resting pose, correcting only floor penetration.
+        const p = record.body.translation(), q = record.body.rotation();
+        const rowX = 2 * (q.x * q.y + q.w * q.z), rowY = 1 - 2 * (q.x * q.x + q.z * q.z), rowZ = 2 * (q.y * q.z - q.w * q.x);
+        let minimumY = Infinity;
+        for (let i = 0; i < record.hullVertices.length; i += 3) minimumY = Math.min(minimumY, p.y + rowX * record.hullVertices[i] + rowY * record.hullVertices[i + 1] + rowZ * record.hullVertices[i + 2]);
+        if (minimumY < -0.002) record.body.setTranslation({ x: p.x, y: p.y - minimumY - 0.002, z: p.z }, false);
+        record.body.setBodyType(RAPIER.RigidBodyType.Fixed, false);
+        record.restGroup = group; record.restTime = 0;
+        // Include already-fixed neighbors so their later wake is not mistaken
+        // for a brand-new collision while they are still touching this piece.
+        record.restNeighbors = new Set([...graph.get(record).touching].filter(neighbor => !group.has(neighbor)).map(neighbor => neighbor.collider.handle));
+        record.restNeighborSeparation?.clear();
+        record.body.userData.resting = true;
       }
     }
   }
@@ -586,9 +822,9 @@ export async function createFractureLab({ scene, outerMaterial, innerMaterial, g
     step(dt) {
       if (!enabled || paused || busy || disposed) { accumulator = 0; return; }
       accumulator += Math.min(0.1, Math.max(0, Number(dt) || 0));
-      for (let count = 0; accumulator >= 1 / 60 && count < 6; count++) {
-        wakeNearbyResting(1 / 60);
-        rememberIncomingMotion(); world.step(eventQueue); simulationTime += 1 / 60; collectContactEvents(); settleRestingContacts(1 / 60); accumulator -= 1 / 60;
+      for (let count = 0; accumulator >= PHYSICS_STEP && count < 12; count++) {
+        wakeNearbyResting(PHYSICS_STEP);
+        refreshQuarantine(); rememberIncomingMotion(); world.step(eventQueue,contactHooks); simulationTime += PHYSICS_STEP; collectContactEvents(); settleRestingContacts(PHYSICS_STEP); accumulator -= PHYSICS_STEP;
       }
       for (const record of [...records.values()]) {
         if (record.generation === 0) continue;
