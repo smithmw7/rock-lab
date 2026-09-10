@@ -15,6 +15,7 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 
 | | What's inside |
 | :--- | :--- |
+| **Scene builder** | Multiple independent instances, selection, move/rotate/scale handles, snapping, and shaded/wireframe/collider/normal views |
 | **79 objects** | Rocks, terrain, modular architecture, furniture, tools, metal stock, pottery, and paths in a searchable scrolling library |
 | **Terrain kit** | 16 cliffs, rock pillars, flat platforms, and stone ramps using the original material system |
 | **Spline paths** | Editable stepping stones, fitted bricks and cobbles, wooden planks, or any of 74 source objects |
@@ -34,7 +35,8 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 2. Open **Material** to adjust the finish. **Outer / Inner** selects the original skin or exposed fracture faces.
 3. Try **Ground → Wet asphalt**, then adjust roughness, normal strength, and puddle ripples.
 4. Enable **Fracture → Tap destruction** and click the asset. Drag to orbit; scroll or pinch to zoom.
-5. Use **File → Save recipe** to keep your settings, or **File → Save image** for a PNG.
+5. Switch **Object → Scene** at the top center to assemble multiple objects. Choose shapes to add them, then use the transform toolbar or numeric inspector.
+6. Use **File → Save recipe / Save scene** to keep your settings, or **File → Save image** for a PNG.
 
 Parameter labels have explanations on hover, keyboard focus, and touch. Action buttons stay free of tooltips. **View** contains framing, variations, turntable, and wireframe; **Help** contains the controls guide.
 
@@ -58,6 +60,8 @@ npm run verify:workshop        # Tool variants, hollow vessels, and spline extre
 npm run verify:terrain         # Closed terrain meshes and actual fracture
 npm run verify:paths           # Fitted paving, spacing, world scale, and budgets
 npm run verify:fracture        # Actual fracture geometry and physics
+npm run verify:scene           # Scene ownership, transforms, convex hulls, and budgets
+npm run qa:scene               # Real browser scene editing and recipe checks
 npm run build                 # Portable static app in dist/
 npm run verify:publication     # Check deployable assets and exclusions
 npm run preview -- --port 5208
@@ -67,7 +71,7 @@ The GitHub Actions workflow builds and deploys `main` to Pages. Relative asset p
 
 ## Export and reuse
 
-**Available today:** recipe JSON and viewport PNG. Recipes restore the intact source with geometry, independent materials, lighting, ground, and fracture settings. Recipes now use version 5, including editable path points and repeated-object settings. Moving debris and camera position are not serialized. Versions 1–5 remain supported.
+**Available today:** recipe JSON and viewport PNG. Recipes restore the intact source with geometry, independent materials, lighting, ground, and fracture settings. Recipes now use version 6. Scene files preserve independent object recipes, names, transforms, selection, snapping, display settings, and the scene environment, alongside the original Object draft. Moving debris and camera position are not serialized. Versions 1–5 still load into Object mode.
 
 **Not yet implemented:** GLB export, UV atlasing, and baked PBR texture export. Normal/height/roughness views are shader diagnostics. They are not downloadable game texture maps.
 
@@ -77,6 +81,7 @@ Start with [`src/geometry.js`](src/geometry.js), [`src/material.js`](src/materia
 - [Object library: all 79 forms](docs/OBJECT-LIBRARY.md)
 - [Composite tools, materials, and spline lathe guide](docs/WORKSHOP.md)
 - [Terrain and editable spline paths](docs/PATHS.md)
+- [Scene building and transform tools](docs/SCENE.md)
 - [Stylized wood research and pipeline](STYLIZED-WOOD-RESEARCH.md)
 - [Validation notes](VALIDATION.md)
 - [Contributor rules](AGENTS.md)

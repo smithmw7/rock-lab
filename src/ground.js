@@ -303,6 +303,9 @@ export function createGround(renderer, scene, options = {}) {
     // coplanar receiver can cover the rock reflection or cause nested recursion.
     renderingReflection = true;
     const wasVisible = group.visible;
+    // Editor handles and selection aids are overlays, not reflected geometry.
+    const editorHelpers = activeScene.children.filter(object => object.userData.sceneEditorHelper && object.visible);
+    for (const helper of editorHelpers) helper.visible = false;
     const autoReset = activeRenderer.info.autoReset;
     const shadowAutoUpdate = activeRenderer.shadowMap.autoUpdate;
     const shadowNeedsUpdate = activeRenderer.shadowMap.needsUpdate;
@@ -321,6 +324,7 @@ export function createGround(renderer, scene, options = {}) {
       reflectionPasses++;
     } finally {
       group.visible = wasVisible;
+      for (const helper of editorHelpers) helper.visible = true;
       activeRenderer.info.autoReset = autoReset;
       activeRenderer.shadowMap.autoUpdate = shadowAutoUpdate;
       activeRenderer.shadowMap.needsUpdate = shadowNeedsUpdate;

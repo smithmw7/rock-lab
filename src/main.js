@@ -17,6 +17,8 @@ import { WORKSHOP_MATERIAL_DEFAULTS, WORKSHOP_MATERIAL_RANGES } from './workshop
 import { createLatheEditor } from './lathe-editor.js';
 import { PATH_DEFAULTS, PATH_RANGES, PATH_SHAPES, sanitizePathOptions } from './path-geometry.js';
 import { createPathEditor } from './path-editor.js';
+import { createSceneEditor } from './scene-editor.js';
+import { createScenePanel } from './scene-ui.js';
 import './style.css';
 import './menu.css';
 import './library.css';
@@ -66,6 +68,8 @@ const materialFamilyFor=surface=>surfaces[surface]?.family||(Object.hasOwn(OPTIC
 let rotation=false,lastGeneration=0,generationCount=0,pendingGenerate=0,frameSize=5.4,toastTimer;
 let assets=[];
 let pathFrameBounds=null;
+let workspaceMode='object',sceneEditor=null,scenePanel=null,objectDraft=null,sceneCamera=null,sceneEnvironment=null,sceneInitialized=false,loadingSceneSelection=false;
+const inScene=()=>workspaceMode==='scene';
 const stage=document.querySelector('#stage');
 const scene=new THREE.Scene();
 scene.background=new THREE.Color('#151d25');
@@ -106,6 +110,7 @@ const innerMaterial=createRockMaterial({...innerState,fractureInterior:true});
 const partMaterials=Object.fromEntries(Object.entries(partStates).map(([slot,pair])=>[slot,{outer:createRockMaterial(pair.outer),inner:createRockMaterial({...pair.inner,fractureInterior:true})}]));
 const allMaterials=()=>[material,innerMaterial,...Object.values(partMaterials).flatMap(pair=>[pair.outer,pair.inner])];
 function updateMaterials(){
+  if(inScene()){updateSceneMaterials();return;}
   updateRockMaterial(material,state);updateRockMaterial(innerMaterial,{...innerState,fractureInterior:true});
   for(const [slot,pair] of Object.entries(partMaterials)){
     updateRockMaterial(pair.outer,partStates[slot].outer);updateRockMaterial(pair.inner,{...partStates[slot].inner,fractureInterior:true});
@@ -177,6 +182,8 @@ const objectLibrary=createObjectLibrary({
 });
 const latheEditor=createLatheEditor({state,getShape:effectiveShape,onChange:()=>{selectedLook='';queueGenerate();}});
 function selectObject(id){
+  cancelAnimationFrame(pendingGenerate);pendingGenerate=0;
+  const adding=inScene();loadingSceneSelection=adding;
   const changed=state.shape!==id;state.shape=id;selectedLook='';materialSlot='primary';
   if(changed&&(WORKSHOP_SHAPES.has(id)||shapes[id].kind==='terrain'||isPath())){
     state.latheProfile=null;applyObjectSurface(id==='objectPath'?state.pathObject:id);
@@ -184,7 +191,9 @@ function selectObject(id){
   if(isPath()){
     viewMode='single';syncViewButtons();setInspector('path');
   }
-  materialFamily=materialFamilyFor(currentMaterialState().surface);generate(true);
+  materialFamily=materialFamilyFor(currentMaterialState().surface);loadingSceneSelection=false;
+  if(adding){addSceneObject();return;}
+  generate(true);
 }
 function applyObjectSurface(id){
   const entry=shapes[id];
@@ -193,7 +202,7 @@ function applyObjectSurface(id){
   if(entry.kind==='composite')for(const side of ['outer','inner']){
     applySurface(partStates.handle[side],entry.defaultHandleSurface||'oak');applySurface(partStates.trim[side],'brass');
   }
-  updateMaterials();
+  if(!inScene())updateMaterials();
 }
 const pathEditor=createPathEditor({state,onChange:()=>{selectedLook='';queueGenerate();}});
 for(const group of shapeGroups){
@@ -202,7 +211,7 @@ for(const group of shapeGroups){
   if(optgroup.children.length)document.querySelector('#pathObject').append(optgroup);
 }
 document.querySelectorAll('[data-path-style]').forEach(button=>button.addEventListener('click',()=>selectObject(button.dataset.pathStyle)));
-document.querySelector('#pathObject').addEventListener('change',event=>{state.pathObject=event.target.value;state.latheProfile=null;applyObjectSurface(state.pathObject);if(!shapes[state.pathObject].defaultSurface){applySurface(state,'stone');applySurface(innerState,'limestone');updateMaterials();}selectedLook='';materialFamily=materialFamilyFor(state.surface);generate(true);});
+document.querySelector('#pathObject').addEventListener('change',event=>{state.pathObject=event.target.value;state.latheProfile=null;applyObjectSurface(state.pathObject);if(!shapes[state.pathObject].defaultSurface){applySurface(state,'stone');applySurface(innerState,'limestone');if(!inScene())updateMaterials();}selectedLook='';materialFamily=materialFamilyFor(state.surface);generate(true);});
 for(const key of ['pathAlign','pathClosed'])document.getElementById(key).addEventListener('change',event=>{state[key]=event.target.checked;selectedLook='';queueGenerate();});
 for(const key of ['hammerHead','knifeBlade'])document.getElementById(key).addEventListener('change',event=>{state[key]=event.target.value;selectedLook='';queueGenerate();});
 document.querySelector('#edit-parts').addEventListener('click',()=>{materialSlot='primary';selectMaterialTarget('outer');});
@@ -236,9 +245,11 @@ for(const [id,look] of Object.entries(looks)){
 function applyLook(id){
   if(inspector==='path')setInspector('shape');
   materialSlot='primary';Object.assign(state,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,WORKSHOP_DEFAULTS,WORKSHOP_MATERIAL_DEFAULTS,structuredClone(PATH_DEFAULTS),tintDefaults,looks[id].options);selectedLook=id;materialFamily=materialFamilyFor(currentMaterialState().surface);
-  renderShapes({reveal:true});updateMaterials();ground.update(state);applyLighting();generate(true);
+  renderShapes({reveal:true});if(!inScene())updateMaterials();ground.update(state);applyLighting();generate(true);
 }
 function setInspector(id){
+  if(id==='fracture'&&inScene())id='scene';
+  if(id==='scene'&&!inScene())id='shape';
   if(id==='path'&&!isPath()){state.pathObject=state.shape;selectObject('steppingStonePath');return;}
   inspector=id;
   document.querySelectorAll('[data-panel]').forEach(el=>{const active=el.dataset.panel===id;el.setAttribute('aria-selected',active);el.tabIndex=active?0:-1;});
@@ -249,7 +260,7 @@ function setInspector(id){
 document.querySelectorAll('[data-panel]').forEach(el=>el.addEventListener('click',()=>setInspector(el.dataset.panel)));
 for(const tablist of document.querySelectorAll('[role="tablist"]'))tablist.addEventListener('keydown',event=>{
   if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
-  const items=[...tablist.querySelectorAll('[role="tab"]')];let index=items.indexOf(document.activeElement);
+  const items=[...tablist.querySelectorAll('[role="tab"]')].filter(item=>!item.hidden&&!item.disabled);let index=items.indexOf(document.activeElement);
   if(index<0)return;event.preventDefault();
   index=event.key==='Home'?0:event.key==='End'?items.length-1:(index+(event.key==='ArrowRight'?1:-1)+items.length)%items.length;
   items[index].click();items[index].focus();
@@ -269,7 +280,7 @@ function syncInputs(){
   document.querySelector('#pathClosed').disabled=state.pathPoints.length<3;
   document.querySelectorAll('[data-path-style]').forEach(el=>{el.classList.toggle('active',el.dataset.pathStyle===state.shape);el.setAttribute('aria-pressed',String(el.dataset.pathStyle===state.shape));});
   if(isPath()){
-    pathEditor.sync();const p=assets[0]?.userData.path,status=document.querySelector('#path-status');
+    pathEditor.sync();const p=(inScene()?sceneEditor?.getSelected()?.group:assets[0])?.userData.path,status=document.querySelector('#path-status');
     const warnings=[...(p?.warnings??[]),...(p&&p.pieces===0?['No pieces fit this route. Move the points farther apart or reduce Piece size and Piece gap.']:[])];status.classList.toggle('warning',Boolean(warnings.length||p?.truncated));
     status.textContent=p?`${p.length.toFixed(2)} units · ${p.pieces} pieces${p.truncated?' · Layout budget reached':''}${warnings.length?' · '+warnings.join(' '):''}`:'Editing route…';
   }
@@ -315,6 +326,7 @@ function syncInputs(){
   document.querySelector('#look-note').textContent=selectedLook?looks[selectedLook].note:'Create a family of reusable assets.';
   syncDestruction();
   syncAudio();
+  if(inScene()){sceneEnvironment=captureEnvironment();syncScenePanel();}
 }
 function selectMaterialTarget(target){
   materialTarget=target==='inner'?'inner':'outer';materialFamily=materialFamilyFor(currentMaterialState().surface);setInspector('material');syncInputs();
@@ -324,6 +336,7 @@ document.querySelector('#material-tint').addEventListener('input',event=>{curren
 document.querySelector('#absorptionColor').addEventListener('input',event=>{currentMaterialState().absorptionColor=event.target.value;selectedLook='';updateMaterials();syncInputs();});
 document.querySelector('#reset-optical').addEventListener('click',()=>{const target=currentMaterialState();Object.assign(target,OPTICAL_DEFAULTS,OPTICAL_PRESETS[target.surface]);target.materialRoughness=surfaces[target.surface].roughness;selectedLook='';updateMaterials();syncInputs();message('Optical preset restored');});
 function syncDestruction(stats=fractureController?.getStats()){
+  if(inScene()){document.querySelector('#destruction-hud').hidden=true;syncScenePanel();return;}
   const data=stats??{enabled:false,paused:false,busy:false,meshes:0,fragments:0};
   fracturePanel?.setStatus({...data,enabled:fractureRequested,loading:fractureRequested&&!fractureController});
   document.querySelector('#destruction-hud').hidden=!fractureRequested;
@@ -347,6 +360,7 @@ function ensurePathFractureBudget(){
   message('Path destruction: live piece limit raised to 160.');
 }
 async function setFractureEnabled(enabled){
+  if(enabled&&inScene()){message('Switch to Object mode to test destruction.');return;}
   fractureRequested=Boolean(enabled);
   if(!enabled){audio.stop();fractureController?.setEnabled(false);syncDestruction();return;}
   if(viewMode!=='single')setViewMode('single');
@@ -390,6 +404,7 @@ function applyLighting(){
   scene.background.set(p.bg);scene.fog.color.set(p.bg);ground.update({studioColor:p.bg});
 }
 function frameAsset(){
+  if(inScene()){frameScene(false);return;}
   if(!fractureRequested)assembly.rotation.y=0;
   if(isPath()){camera.position.set(7,8,9);controls.target.set(0,0,0);fitPathCamera();return;}
   frameSize=viewMode==='lineup'?7.6:5.4;
@@ -419,11 +434,20 @@ function fitPathCamera(){
 function resize(){
   const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;
   renderer.setSize(w,h);ground.resize(w,h);const aspect=w/h;
-  const height=isPath()&&pathFrameBounds?Math.max(2.8,pathFrameBounds.height,pathFrameBounds.width/aspect):viewMode==='lineup'?Math.max(5.2,14.5/aspect):(aspect<1?frameSize/aspect:frameSize);
+  const height=inScene()?Math.max(2.8,frameSize,frameSize/Math.max(aspect,.2)):isPath()&&pathFrameBounds?Math.max(2.8,pathFrameBounds.height,pathFrameBounds.width/aspect):viewMode==='lineup'?Math.max(5.2,14.5/aspect):(aspect<1?frameSize/aspect:frameSize);
   camera.left=-height*aspect/2;camera.right=height*aspect/2;camera.top=height/2;camera.bottom=-height/2;camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(stage);
 function generate(resetCamera=false){
+  pendingGenerate=0;
+  if(inScene()){
+    const start=performance.now();
+    if(!loadingSceneSelection&&sceneEditor?.getSelected()){
+      if(!sceneEditor.replaceSelected(objectRecipe())){loadSceneSelection();return;}
+      lastGeneration=performance.now()-start;generationCount++;
+    }
+    document.querySelector('#generation-time').textContent=lastGeneration.toFixed(1);syncInputs();return;
+  }
   audio.stop();
   const start=performance.now();
   for(const asset of assets){assembly.remove(asset);disposeAsset(asset);}assets=[];
@@ -449,15 +473,17 @@ function queueGenerate(){cancelAnimationFrame(pendingGenerate);pendingGenerate=r
 document.querySelector('#seed').addEventListener('change',event=>{state.seed=Math.max(1,Math.min(999999,Math.round(Number(event.target.value)||defaults.seed)));selectedLook='';generate();});
 document.querySelector('#new-seed').addEventListener('click',()=>{state.seed=1+crypto.getRandomValues(new Uint32Array(1))[0]%999999;selectedLook='';generate();});
 document.querySelector('#lighting').addEventListener('change',event=>{state.lighting=event.target.value;selectedLook='';applyLighting();syncInputs();});
-document.querySelector('#wireframe').addEventListener('change',event=>{for(const mat of allMaterials())mat.wireframe=event.target.checked;});
+document.querySelector('#wireframe').addEventListener('change',event=>{if(inScene()){sceneEditor.updateSettings({renderMode:event.target.checked?'wireframe':'shaded'});return;}for(const mat of allMaterials())mat.wireframe=event.target.checked;});
 document.querySelector('#rotate').addEventListener('change',event=>{rotation=event.target.checked;});
 document.querySelector('#frame').addEventListener('click',frameAsset);
 document.querySelector('#help-dialog').addEventListener('click',event=>{if(event.target===event.currentTarget)event.currentTarget.close();});
 function syncViewButtons(){
   for(const m of ['single','lineup']){const el=document.querySelector(`#view-${m}`);el.classList.toggle('active',m===viewMode);el.setAttribute('aria-pressed',m===viewMode);if(m==='lineup')el.disabled=isPath();}
-  document.querySelector('[data-menu-action="lineup"]').disabled=isPath();
+  document.querySelector('[data-menu-action="lineup"]').disabled=inScene()||isPath();
+  document.querySelector('[data-menu-action="single"]').disabled=inScene();
 }
 function setViewMode(mode){
+  if(inScene())return;
   if(mode==='lineup'&&isPath()){message('Paths use the single-layout view. Change Seed to make a variation.');return;}
   if(mode==='lineup'&&fractureRequested)setFractureEnabled(false);
   viewMode=mode;
@@ -466,10 +492,11 @@ function setViewMode(mode){
 }
 for(const mode of ['single','lineup'])document.querySelector(`#view-${mode}`).addEventListener('click',()=>setViewMode(mode));
 const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),activePointers=new Set();let pointerStart=null;
-renderer.domElement.addEventListener('pointerdown',event=>{if(fractureRequested)unlockAudio();activePointers.add(event.pointerId);pointerStart=event.button===0&&activePointers.size===1?{id:event.pointerId,x:event.clientX,y:event.clientY,moved:false}:null;});
+renderer.domElement.addEventListener('pointerdown',event=>{if(inScene())return;if(fractureRequested)unlockAudio();activePointers.add(event.pointerId);pointerStart=event.button===0&&activePointers.size===1?{id:event.pointerId,x:event.clientX,y:event.clientY,moved:false}:null;});
 renderer.domElement.addEventListener('pointermove',event=>{if(pointerStart&&Math.hypot(event.clientX-pointerStart.x,event.clientY-pointerStart.y)>5)pointerStart.moved=true;});
 renderer.domElement.addEventListener('pointercancel',event=>{activePointers.delete(event.pointerId);pointerStart=null;});
 renderer.domElement.addEventListener('pointerup',event=>{
+  if(inScene())return;
   activePointers.delete(event.pointerId);
   if(!pointerStart||pointerStart.id!==event.pointerId||pointerStart.moved||Math.hypot(event.clientX-pointerStart.x,event.clientY-pointerStart.y)>5){pointerStart=null;return;}
   pointerStart=null;
@@ -483,6 +510,7 @@ renderer.domElement.addEventListener('pointerup',event=>{
 });
 document.querySelector('#reset-asphalt').addEventListener('click',()=>{Object.assign(state,ASPHALT_DEFAULTS);selectedLook='';ground.update(state);syncInputs();message('Asphalt detail restored');});
 document.querySelector('#reset').addEventListener('click',()=>{
+  if(inScene())setWorkspaceMode('object');
   if(inspector==='path')setInspector('shape');
   setFractureEnabled(false);fractureOptions=sanitizeFractureOptions(FRACTURE_DEFAULTS);fractureController?.update(fractureOptions);fracturePanel.setOptions(fractureOptions);
   Object.assign(state,defaults,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,WORKSHOP_DEFAULTS,WORKSHOP_MATERIAL_DEFAULTS,structuredClone(PATH_DEFAULTS),tintDefaults);Object.assign(innerState,innerDefaults);
@@ -494,30 +522,30 @@ document.querySelector('#reset').addEventListener('click',()=>{
 function download(data,name,type){
   const url=URL.createObjectURL(data instanceof Blob?data:new Blob([data],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
-function recipe(){return{generator:'procedural-rock-lab',version:5,options:structuredClone(state),innerMaterial:{...innerState},partMaterials:structuredClone(partStates),fracture:{...structuredClone(fractureOptions),enabled:fractureRequested}};}
-document.querySelector('#save-recipe').addEventListener('click',()=>{download(JSON.stringify(recipe(),null,2),`rock-${state.shape}-${state.seed}.json`,'application/json');message('Recipe download started. Load the JSON to restore it.');});
+function objectRecipe(){return{generator:'procedural-rock-lab',version:5,options:structuredClone(state),innerMaterial:{...innerState},partMaterials:structuredClone(partStates),fracture:{...structuredClone(fractureOptions),enabled:fractureRequested}};}
+document.querySelector('#save-recipe').addEventListener('click',()=>{download(JSON.stringify(recipe(),null,2),`${inScene()?'scene':'rock'}-${state.shape}-${state.seed}.json`,'application/json');message(inScene()?'Scene download started. Load the JSON to restore it.':'Recipe download started. Load the JSON to restore it.');});
 document.querySelector('#export-png').addEventListener('click',()=>{
   renderer.render(scene,camera);renderer.domElement.toBlob(blob=>{if(blob){download(blob,`rock-${state.shape}-${state.seed}.png`,'image/png');message('Image download started');}else message('Image export failed. Please try again.');},'image/png');
 });
-async function loadRecipe(data){
-  if(data.generator!=='procedural-rock-lab'||![1,2,3,4,5].includes(data.version)||!data.options||!shapes[data.options.shape])throw new Error('Unsupported rock recipe');
-  await setFractureEnabled(false);
+function normalizeObjectRecipe(data){
+  if(!data||data.generator!=='procedural-rock-lab'||![1,2,3,4,5,6].includes(data.version)||!data.options||!Object.hasOwn(shapes,data.options.shape))throw new Error('Unsupported rock recipe');
+  const state={},innerState={},partStates={handle:{outer:{},inner:{}},trim:{outer:{},inner:{}}};
   const options=data.options;Object.assign(state,defaults,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,WORKSHOP_DEFAULTS,WORKSHOP_MATERIAL_DEFAULTS,structuredClone(PATH_DEFAULTS),OPTICAL_PRESETS[data.options.surface],tintDefaults);Object.assign(innerState,innerDefaults,OPTICAL_PRESETS[data.innerMaterial?.surface]);
   for(const spec of specs)if(Number.isFinite(options[spec.key]))state[spec.key]=THREE.MathUtils.clamp(options[spec.key],spec.min??0,spec.max??1);
   state.seed=Number.isFinite(options.seed)?THREE.MathUtils.clamp(Math.round(options.seed),1,999999):defaults.seed;
-  state.shape=options.shape;state.surface=surfaces[options.surface]?options.surface:'stone';
+  state.shape=options.shape;state.surface=Object.hasOwn(surfaces,options.surface)?options.surface:'stone';
   Object.assign(state,sanitizeWorkshopOptions(options),sanitizePathOptions(options));
-  if(!shapes[state.pathObject]||PATH_SHAPES.has(state.pathObject))state.pathObject='boulder';
+  if(!Object.hasOwn(shapes,state.pathObject)||PATH_SHAPES.has(state.pathObject))state.pathObject='boulder';
   if(!Number.isFinite(options.materialRoughness))state.materialRoughness=surfaces[state.surface].roughness;
   state.lighting=['alpine','soft','sunset'].includes(options.lighting)?options.lighting:'alpine';
-  state.ground=grounds[options.ground]?options.ground:'studio';
+  state.ground=Object.hasOwn(grounds,options.ground)?options.ground:'studio';
   state.mapView=['beauty','normal','height','roughness'].includes(options.mapView)?options.mapView:'beauty';
   if(/^#[0-9a-f]{6}$/i.test(options.tint||''))state.tint=options.tint;
   if(/^#[0-9a-f]{6}$/i.test(options.absorptionColor||''))state.absorptionColor=options.absorptionColor;
   if(data.version>=3&&data.innerMaterial){
     const saved=data.innerMaterial;
     for(const spec of specs.filter(spec=>spec.kind==='material'))if(Number.isFinite(saved[spec.key]))innerState[spec.key]=THREE.MathUtils.clamp(saved[spec.key],spec.min??0,spec.max??1);
-    if(surfaces[saved.surface])innerState.surface=saved.surface;
+    if(Object.hasOwn(surfaces,saved.surface))innerState.surface=saved.surface;
     if(/^#[0-9a-f]{6}$/i.test(saved.tint||''))innerState.tint=saved.tint;
     if(/^#[0-9a-f]{6}$/i.test(saved.absorptionColor||''))innerState.absorptionColor=saved.absorptionColor;
     if(['beauty','normal','height','roughness'].includes(saved.mapView))innerState.mapView=saved.mapView;
@@ -525,28 +553,188 @@ async function loadRecipe(data){
   for(const slot of ['handle','trim'])for(const side of ['outer','inner']){
     const target=partStates[slot][side];Object.assign(target,makePartState(slot==='handle'?'oak':'brass'));
     const saved=data.version>=4?data.partMaterials?.[slot]?.[side]:null;if(!saved)continue;
-    if(surfaces[saved.surface])applySurface(target,saved.surface);
+    if(Object.hasOwn(surfaces,saved.surface))applySurface(target,saved.surface);
     for(const spec of specs.filter(spec=>spec.kind==='material'))if(Number.isFinite(saved[spec.key]))target[spec.key]=THREE.MathUtils.clamp(saved[spec.key],spec.min??0,spec.max??1);
     for(const key of ['tint','absorptionColor'])if(/^#[0-9a-f]{6}$/i.test(saved[key]||''))target[key]=saved[key];
     if(['beauty','normal','height','roughness'].includes(saved.mapView))target.mapView=saved.mapView;
   }
-  materialSlot='primary';
-  fractureOptions=sanitizeFractureOptions({...FRACTURE_DEFAULTS,...(data.version>=3?data.fracture:{})});
-  fracturePanel.setOptions(fractureOptions);fractureController?.update(fractureOptions);
-  selectedLook='';materialFamily=materialFamilyFor(currentMaterialState().surface);renderShapes({reveal:true});updateMaterials();ground.update(state);applyLighting();generate(true);
-  if(isPath())setInspector('path');else if(inspector==='path')setInspector('shape');
-  if(data.version>=3&&data.fracture?.enabled)await setFractureEnabled(true);
+  return {generator:'procedural-rock-lab',version:5,options:state,innerMaterial:innerState,partMaterials:partStates,fracture:{...sanitizeFractureOptions({...FRACTURE_DEFAULTS,...(data.version>=3?data.fracture:{})}),enabled:Boolean(data.version>=3&&data.fracture?.enabled)}};
 }
-async function readRecipe(file){if(!file)return;try{await loadRecipe(JSON.parse(await file.text()));message('Asset recipe restored');}catch{message('Please choose a Rock Lab recipe JSON file.');}}
+function applyRecipeState(data,{keepEnvironment=false}={}){
+  const savedEnvironment=keepEnvironment?captureEnvironment():null;
+  Object.assign(state,structuredClone(data.options));Object.assign(innerState,structuredClone(data.innerMaterial));
+  for(const slot of ['handle','trim'])for(const side of ['outer','inner'])Object.assign(partStates[slot][side],structuredClone(data.partMaterials[slot][side]));
+  if(savedEnvironment)Object.assign(state,savedEnvironment);
+  materialSlot='primary';materialFamily=materialFamilyFor(currentMaterialState().surface);selectedLook='';
+}
+function recipe(){
+  if(pendingGenerate){cancelAnimationFrame(pendingGenerate);generate();}
+  return {...(inScene()&&objectDraft?structuredClone(objectDraft.recipe):objectRecipe()),version:6,workspaceMode,
+    scene:{...sceneEditor.serialize(),initialized:sceneInitialized,environment:inScene()?captureEnvironment():sceneEnvironment}};
+}
+async function loadRecipe(data){
+  // Validate the object and every scene instance before replacing either workspace.
+  const normalized=normalizeObjectRecipe(data);
+  if(data.version===6){
+    if(!['object','scene'].includes(data.workspaceMode))throw new Error('Unsupported workspace mode');
+    if(!data.scene)throw new Error('Missing scene data');
+    loadingSceneSelection=true;
+    try{sceneEditor.load(data.scene);}finally{loadingSceneSelection=false;}
+    sceneInitialized=data.workspaceMode==='scene'||data.scene.objects.length>0||data.scene.initialized===true;sceneCamera=null;
+    sceneEnvironment=!sceneInitialized&&data.scene.environment==null?null:sanitizeEnvironment(data.scene.environment??normalized.options);
+  }
+  cancelAnimationFrame(pendingGenerate);pendingGenerate=0;
+  await setFractureEnabled(false);workspaceMode='object';sceneEditor.setActive(false);assembly.visible=true;
+  applyRecipeState(normalized);fractureOptions=sanitizeFractureOptions(normalized.fracture);
+  fracturePanel.setOptions(fractureOptions);fractureController?.update(fractureOptions);
+  rotation=false;document.querySelector('#rotate').checked=false;document.querySelector('#wireframe').checked=false;
+  for(const mat of allMaterials())mat.wireframe=false;
+  materialSlot='primary';materialTarget='outer';viewMode='single';objectDraft=null;
+  renderShapes({reveal:true});updateMaterials();ground.update(state);applyLighting();generate(true);
+  setInspector(isPath()?'path':'shape');syncScenePanel();
+  if(data.version===6&&data.workspaceMode==='scene'){
+    setWorkspaceMode('scene');objectDraft.recipe.fracture.enabled=normalized.fracture.enabled;
+  }else if(normalized.fracture.enabled)await setFractureEnabled(true);
+}
+// Object and Scene use separate drafts, cameras, and owned rendering resources.
+const environmentKeys=['lighting','ground',...specs.filter(spec=>spec.kind==='ground').map(spec=>spec.key)];
+function captureEnvironment(){return Object.fromEntries(environmentKeys.map(key=>[key,state[key]]));}
+function sanitizeEnvironment(input){
+  const options=normalizeObjectRecipe({generator:'procedural-rock-lab',version:5,options:{...input,shape:'boulder'}}).options;
+  return Object.fromEntries(environmentKeys.map(key=>[key,options[key]]));
+}
+function captureCamera(){return {
+  position:camera.position.toArray(),target:controls.target.toArray(),zoom:camera.zoom,far:camera.far,frameSize,pathFrameBounds:structuredClone(pathFrameBounds),
+  fog:[scene.fog.near,scene.fog.far],keyPosition:key.position.toArray(),keyTarget:key.target.position.toArray(),
+  shadow:Object.fromEntries(['left','right','top','bottom','far'].map(k=>[k,key.shadow.camera[k]])),
+};}
+function restoreCamera(saved){
+  if(!saved)return;
+  controls.autoRotate=false;const damping=controls.enableDamping;controls.enableDamping=false;controls.update(0);
+  camera.position.fromArray(saved.position);controls.target.fromArray(saved.target);camera.zoom=saved.zoom;camera.far=saved.far;
+  frameSize=saved.frameSize;pathFrameBounds=structuredClone(saved.pathFrameBounds);[scene.fog.near,scene.fog.far]=saved.fog;
+  key.position.fromArray(saved.keyPosition);key.target.position.fromArray(saved.keyTarget);key.target.updateMatrixWorld();
+  Object.assign(key.shadow.camera,saved.shadow);key.shadow.camera.updateProjectionMatrix();controls.update(0);controls.enableDamping=damping;resize();
+}
+function frameScene(selection=false){
+  const bounds=sceneEditor.getBounds(selection);if(bounds.isEmpty()){bounds.set(new THREE.Vector3(-2,0,-2),new THREE.Vector3(2,2,2));}
+  const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
+  const direction=camera.position.clone().sub(controls.target).normalize();if(direction.lengthSq()<.1)direction.set(7,6,8).normalize();
+  const distance=Math.max(14,size.length()*1.8);controls.autoRotate=false;
+  const damping=controls.enableDamping;controls.enableDamping=false;controls.update(0);
+  camera.position.copy(center).addScaledVector(direction,distance);controls.target.copy(center);camera.zoom=1;camera.far=Math.max(100,distance+size.length()*3);
+  controls.update(0);controls.enableDamping=damping;camera.updateMatrixWorld();
+  const projected=new THREE.Box3();
+  for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z])projected.expandByPoint(new THREE.Vector3(x,y,z).applyMatrix4(camera.matrixWorldInverse));
+  const extent=projected.getSize(new THREE.Vector3()),aspect=Math.max(.2,stage.clientWidth/stage.clientHeight);
+  frameSize=Math.max(4,extent.y*1.45,extent.x*1.45/aspect);
+  scene.fog.near=distance+size.length()*1.5;scene.fog.far=scene.fog.near+60;
+  const shadowSize=Math.max(12,size.length());key.position.copy(center).add(new THREE.Vector3(-shadowSize,shadowSize*1.5,shadowSize));key.target.position.copy(center);key.target.updateMatrixWorld();
+  Object.assign(key.shadow.camera,{left:-shadowSize,right:shadowSize,top:shadowSize,bottom:-shadowSize,far:shadowSize*5});key.shadow.camera.updateProjectionMatrix();resize();
+}
+function buildSceneInstance(input){
+  const data=normalizeObjectRecipe(input),pairs={};
+  const options={primary:{outer:data.options,inner:data.innerMaterial},...data.partMaterials};
+  let group;
+  try{
+    for(const [slot,pair] of Object.entries(options))pairs[slot]={outer:createRockMaterial(pair.outer),inner:createRockMaterial({...pair.inner,fractureInterior:true})};
+    group=buildAsset(data.options,pairs.primary.outer);
+    group.traverse(mesh=>{if(mesh.isMesh){mesh.material=(pairs[mesh.userData.materialSlot]??pairs.primary).outer;mesh.castShadow=true;mesh.receiveShadow=true;}});
+    group.userData.sceneMaterials=pairs;return group;
+  }catch(error){if(group)disposeAsset(group);for(const pair of Object.values(pairs))for(const mat of Object.values(pair))mat.dispose();throw error;}
+}
+function disposeSceneInstance(group){
+  disposeAsset(group);
+  for(const pair of Object.values(group.userData.sceneMaterials??{}))for(const mat of Object.values(pair))mat.dispose();
+}
+function updateSceneMaterials(){
+  if(loadingSceneSelection||!sceneEditor?.getSelected())return;
+  const record=sceneEditor.getSelected(),pairs=record.group.userData.sceneMaterials;
+  updateRockMaterial(pairs.primary.outer,state);updateRockMaterial(pairs.primary.inner,{...innerState,fractureInterior:true});
+  for(const slot of ['handle','trim'])for(const side of ['outer','inner'])updateRockMaterial(pairs[slot][side],{...partStates[slot][side],fractureInterior:side==='inner'});
+  const saved=record.recipe;
+  // A material edit must not commit a pending geometry edit before its budget check.
+  for(const key of materialKeys)saved.options[key]=structuredClone(state[key]);
+  saved.innerMaterial=structuredClone(innerState);saved.partMaterials=structuredClone(partStates);
+  sceneEditor.updateSelectedRecipe(saved);
+}
+function syncScenePanel(){
+  if(!sceneEditor)return;
+  const snapshot=sceneEditor.getSnapshot();scenePanel?.sync({...snapshot,active:inScene(),objects:snapshot.objects.map(record=>({...record,shape:record.recipe.options.shape,label:shapes[record.recipe.options.shape].label}))});
+  document.querySelector('#save-recipe span').textContent=inScene()?'Save scene…':'Save recipe…';
+  document.querySelector('[data-menu-action="frame"] span').textContent=inScene()?'Frame scene':'Frame asset';
+  if(!inScene())return;
+  document.querySelector('#asset-title').textContent='Scene builder';
+  document.querySelector('#asset-subtitle').textContent=`${snapshot.instances} object${snapshot.instances===1?'':'s'} · ${snapshot.selection?.name??'Choose an object to edit'}`;
+  document.querySelector('#triangles').textContent=snapshot.triangles.toLocaleString();
+  document.querySelector('#wireframe').checked=snapshot.settings.renderMode==='wireframe';
+  document.querySelector('#stage-hint').textContent=snapshot.settings.tool==='select'?'Click to select · Drag to orbit · Add objects from Shapes':'Drag an axis to transform · Drag empty space to orbit';
+}
+function loadSceneSelection(){
+  if(!inScene()||loadingSceneSelection)return;
+  // A queued geometry edit belongs to the old selection, never the new one.
+  cancelAnimationFrame(pendingGenerate);pendingGenerate=0;
+  const record=sceneEditor.getSelected();
+  if(record){loadingSceneSelection=true;applyRecipeState(normalizeObjectRecipe(record.recipe),{keepEnvironment:true});loadingSceneSelection=false;}
+  if(inspector==='path'&&!isPath())setInspector('scene');
+  syncInputs();
+}
+function addSceneObject({first=false}={}){
+  if(!inScene())return;
+  const previous=sceneEditor.getBounds(),data=normalizeObjectRecipe(objectRecipe());data.fracture.enabled=false;
+  const id=sceneEditor.add(data,{name:shapes[state.shape].label});
+  if(!id){loadSceneSelection();return;}
+  if(!first&&!previous.isEmpty()){
+    const bounds=sceneEditor.getBounds(true),x=Math.min(50,previous.max.x+.7-bounds.min.x);
+    sceneEditor.setTransform({position:[x,0,0]});
+  }
+  frameScene(false);syncInputs();
+}
+function setWorkspaceMode(mode){
+  if(!['object','scene'].includes(mode)||mode===workspaceMode)return;
+  if(pendingGenerate){cancelAnimationFrame(pendingGenerate);generate();}
+  pointerStart=null;activePointers.clear();
+  if(mode==='scene'){
+    objectDraft={recipe:objectRecipe(),camera:captureCamera(),viewMode,inspector,materialSlot,materialTarget,selectedLook,rotation,wireframe:material.wireframe};
+    setFractureEnabled(false);workspaceMode='scene';assembly.visible=false;rotation=false;document.querySelector('#rotate').checked=false;
+    if(!sceneEnvironment)sceneEnvironment=captureEnvironment();Object.assign(state,sceneEnvironment);ground.update(state);applyLighting();
+    sceneEditor.setActive(true);
+    if(!sceneInitialized){sceneInitialized=true;addSceneObject({first:true});}
+    else{loadSceneSelection();if(sceneCamera)restoreCamera(sceneCamera);else frameScene(false);}
+    setInspector('scene');
+  }else{
+    sceneCamera=captureCamera();sceneEnvironment=captureEnvironment();workspaceMode='object';sceneEditor.setActive(false);assembly.visible=true;
+    const saved=objectDraft;
+    if(saved){
+      applyRecipeState(saved.recipe);viewMode=saved.viewMode;selectedLook=saved.selectedLook;materialSlot=saved.materialSlot;materialTarget=saved.materialTarget;
+      fractureOptions=sanitizeFractureOptions(saved.recipe.fracture);fracturePanel.setOptions(fractureOptions);fractureController?.update(fractureOptions);
+      rotation=saved.rotation;document.querySelector('#rotate').checked=rotation;document.querySelector('#wireframe').checked=saved.wireframe;
+      for(const mat of allMaterials())mat.wireframe=saved.wireframe;
+      updateMaterials();ground.update(state);applyLighting();generate();restoreCamera(saved.camera);setInspector(saved.inspector==='scene'?'shape':saved.inspector);
+      if(saved.recipe.fracture.enabled)setFractureEnabled(true);
+    }
+  }
+  syncInputs();syncScenePanel();
+}
+function initializeSceneWorkspace(){
+  sceneEditor=createSceneEditor({scene,camera,domElement:renderer.domElement,orbitControls:controls,buildInstance:buildSceneInstance,disposeInstance:disposeSceneInstance,
+    onChange:syncScenePanel,onSelect:loadSceneSelection,onMessage:message,onFrame:()=>frameScene(true)});
+  scenePanel=createScenePanel({onMode:setWorkspaceMode,onSelect:id=>sceneEditor.select(id),onRename:name=>sceneEditor.renameSelected(name),
+    onSettings:settings=>{if(settings.tool)sceneEditor.setTool(settings.tool);sceneEditor.updateSettings(settings);},onTransform:transform=>sceneEditor.setTransform(transform),
+    onAction:action=>{if(action==='add')addSceneObject();if(action==='duplicate'){sceneEditor.duplicateSelected();frameScene(false);}if(action==='delete')sceneEditor.deleteSelected();if(action==='frame')frameScene(true);if(action==='frame-all')frameScene(false);},
+  });syncScenePanel();
+}
+
+async function readRecipe(file){if(!file)return;try{await loadRecipe(JSON.parse(await file.text()));message(inScene()?'Scene restored':'Asset recipe restored');}catch(error){message(`Could not load recipe: ${error.message}`);}}
 document.addEventListener('dragover',event=>event.preventDefault());document.addEventListener('drop',event=>{event.preventDefault();readRecipe(event.dataTransfer.files[0]);});
 document.querySelector('#load-recipe').addEventListener('click',()=>document.querySelector('#recipe-file').click());
 document.querySelector('#recipe-file').addEventListener('change',event=>{readRecipe(event.target.files[0]);event.target.value='';});
 // Rapier stores bodies in world coordinates. Orbit the inspection camera during
 // destruction, and keep the hidden source at the orientation cloned by physics.
 function stepPreview(delta){
-  controls.autoRotate=rotation&&fractureRequested;
-  if(rotation&&!fractureRequested)assembly.rotation.y+=delta*turntableSpeed;
-  fractureController?.step(delta);ground.step(delta);controls.update(delta);
+  controls.autoRotate=rotation&&(fractureRequested||inScene())&&!sceneEditor?.getTransformControls().dragging;
+  if(rotation&&!fractureRequested&&!inScene())assembly.rotation.y+=delta*turntableSpeed;
+  if(!inScene())fractureController?.step(delta);ground.step(delta);if(controls.enabled)controls.update(delta);sceneEditor?.step();
 }
 let lastFrame=performance.now(),fpsStart=lastFrame,frames=0;
 renderer.setAnimationLoop(now=>{
@@ -557,9 +745,10 @@ renderer.setAnimationLoop(now=>{
 fracturePanel=createFracturePanel(document.querySelector('#fracture-controls'),{onOptions:options=>{fractureOptions=sanitizeFractureOptions(options);fractureController?.update(fractureOptions);},onAction:handleFractureAction});
 document.querySelector('#fr-message').after(document.querySelector('#sound-settings'));
 fracturePanel.setOptions(fractureOptions);
+initializeSceneWorkspace();
 renderShapes();setInspector('shape');applyLighting();generate(true);
 const menus=setupMenus(document.querySelector('.app-menubar'),{
-  getState:()=>({viewMode,rotation,wireframe:material.wireframe}),
+  getState:()=>({viewMode:inScene()?'scene':viewMode,rotation,wireframe:inScene()?sceneEditor.getSnapshot().settings.renderMode==='wireframe':material.wireframe}),
   onAction:action=>{
     if(action==='new-seed')document.querySelector('#new-seed').click();
     if(action==='reset')document.querySelector('#reset').click();
@@ -579,15 +768,16 @@ const menus=setupMenus(document.querySelector('.app-menubar'),{
 const cleanupTooltips=setupParameterTooltips();
 void audio.load().catch(()=>syncAudio());
 window.addEventListener('pagehide',()=>audio.stop());
-if(import.meta.hot)import.meta.hot.dispose(()=>{audio.dispose();menus.destroy();objectLibrary.destroy();latheEditor.destroy();pathEditor.destroy();cleanupTooltips();});
-window.rockLab={state,innerState,partStates,partMaterials,recipe,loadRecipe,generate,renderer,scene,camera,material,innerMaterial,ground,audio,setFractureEnabled,get fracture(){return fractureController;},getStats:()=>({triangles:Number(document.querySelector('#triangles').textContent.replaceAll(',','')),generationMs:lastGeneration,generationCount,drawCalls:renderer.info.render.calls,geometries:renderer.info.memory.geometries,programs:renderer.info.programs?.length,viewMode,turntable:rotation,turntableMode:fractureRequested?'camera':'asset',path:assets[0]?.userData.path,ground:ground.getStats(),audio:audio.getState(),fracture:fractureController?.getStats()??{enabled:false}}),ready:true};
+if(import.meta.hot)import.meta.hot.dispose(()=>{audio.dispose();menus.destroy();objectLibrary.destroy();latheEditor.destroy();pathEditor.destroy();scenePanel.destroy();sceneEditor.destroy();cleanupTooltips();});
+window.rockLab={sceneEditor,setWorkspaceMode,get workspaceMode(){return workspaceMode;},controls,state,innerState,partStates,partMaterials,recipe,loadRecipe,generate,renderer,scene,camera,material,innerMaterial,ground,audio,setFractureEnabled,get fracture(){return fractureController;},getStats:()=>({triangles:Number(document.querySelector('#triangles').textContent.replaceAll(',','')),generationMs:lastGeneration,generationCount,drawCalls:renderer.info.render.calls,geometries:renderer.info.memory.geometries,programs:renderer.info.programs?.length,workspaceMode,scene:sceneEditor.getSnapshot(),viewMode,turntable:rotation,turntableMode:fractureRequested||inScene()?'camera':'asset',path:assets[0]?.userData.path,ground:ground.getStats(),audio:audio.getState(),fracture:fractureController?.getStats()??{enabled:false}}),ready:true};
 
 window.render_game_to_text=()=>JSON.stringify({
+  workspaceMode,scene:inScene()?sceneEditor.getSnapshot():undefined,
   coordinates:'Y up; floor y=0; x right and z depth in world space',
   shape:state.shape,seed:state.seed,outer:state.surface,inner:innerState.surface,ground:state.ground,
   path:isPath()?{...assets[0]?.userData.path,points:state.pathPoints}:undefined,
   parts:shapes[effectiveShape()].kind==='composite'?Object.fromEntries(Object.entries(partStates).map(([slot,pair])=>[slot,{outer:pair.outer.surface,inner:pair.inner.surface}])):undefined,
-  turntable:{enabled:rotation,mode:fractureRequested?'camera':'asset'},
+  turntable:{enabled:rotation,mode:fractureRequested||inScene()?'camera':'asset'},
   destruction:fractureController?.getStats()??{enabled:false},
   audio:audio.getState(),
   pieces:fractureController?.getMeshes().slice(0,48).map(mesh=>({position:mesh.getWorldPosition(new THREE.Vector3()).toArray().map(n=>+n.toFixed(3)),generation:mesh.userData.generation??0}))??[],

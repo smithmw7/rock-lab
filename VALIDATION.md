@@ -1,5 +1,15 @@
 # Validation history
 
+## Object and Scene workspace
+
+- Added a separate Scene workspace with independent object recipes/resources, transforms, snapping, selection, a hierarchy, grid, and shaded/wireframe/convex-collider/geometry-normal views. Object remains the default and its draft, camera, and fracture settings are restored when returning.
+- The scene controller audit passes 72 builds and 72 disposals, including exact transform serialization, independent resources, material restoration, actual transformed convex-hull containment, malformed/capacity rollback, focused-input shortcuts, and cleanup. `verify:scene` now runs in Pages CI.
+- All 22 integrated browser groups pass on matching source hashes with zero errors/warnings. Checks use real gizmo drags with a fixed camera, viewport selection versus orbit, numeric transforms, independent material/geometry edits, all four rendered modes, native v6 file downloads/imports, v1–5 imports, initialized-empty and never-entered scenes, construction/fracture transitions, and resource reuse. Five duplicate/delete cycles return to the same renderer resource counts. At 512 meshes, rejected preset and path-source edits preserve the prior recipes, geometry, and material uniforms. The untouched Object v6 file round-trips exactly, including its uninitialized Scene state.
+- Existing menus, all 142 parameter tooltips, eight turntable/fracture groups, and native fracture v6/v1–3 file compatibility pass with no browser errors. The full geometry/material verification and 90 actual fracture cases pass. Production build, private-asset exclusions, nested-prefix production browser checks, and the standard web-game client pass; Vite retains its existing large-chunk warning.
+- All 17 new parameter labels have tooltips, including the viewport toolbar inside the ground-tagged stage. Action buttons have no tooltips. Desktop and mobile screenshots were inspected, including touch and narrow layouts from 320–1440 pixels. Editor handles, selection bounds, and the grid are excluded from planar reflections.
+- Scenes are capped at 64 instances, 512 meshes, and 300,000 triangles. Collider mode is a per-mesh convex diagnostic; Scene mode does not run destruction or collision simulation. Desktop/mobile browser checks do not establish physical-device performance.
+
+
 Checked September 9, 2026.
 
 ## Turntable during fracture

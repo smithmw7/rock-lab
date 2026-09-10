@@ -11,6 +11,14 @@ npm run dev -- --port 5207
 
 Open [Rock Lab](http://127.0.0.1:5207/). This project uses a strict port. `npm run build` produces the static app; `npm run verify` checks geometry, materials, and catalog consistency. `npm run verify:fracture` exercises actual fracture geometry, options, and physics. [Open directly in destruction mode](http://127.0.0.1:5207/?fracture=1).
 
+## Object and Scene workspaces
+
+**Object** is the default. Use the top-center switch to enter **Scene**, which begins with a copy of your current object. Choose a shape to add another instance. Select an instance in the viewport or the Scene object list, then edit its geometry and materials with the existing inspectors. These edits affect only that instance. Switching back restores the original Object draft and camera; returning to Scene keeps your arrangement.
+
+The toolbar provides select, move, rotate, scale, add, duplicate, delete, frame selection, and frame all. **Snap** applies the configured move, angle, and scale increments to gizmo drags. Numeric transform fields accept precise values. **Render** switches between shaded 3D, wireframe, convex colliders, and geometry normals. **Grid** shows world-unit floor lines.
+
+Save the arrangement with **File → Save scene**. [The Scene guide](SCENE.md) covers keyboard controls, independent recipes, collision previews, and limits. Destruction testing stays in Object mode.
+
 ## Shape families and sets
 
 The **Shape** inspector opens to a scrollable **All** library. Search by object name or description, or filter by family. The selected row stays highlighted, and geometry controls remain below the bounded list.
@@ -131,7 +139,7 @@ A normal map changes lighting, while displacement moves vertices. Three's GPU di
 
 ## Save, restore, and reuse
 
-**File → Save recipe** downloads a version 5 JSON recipe containing shape, seed, geometry, lathe profile, tool variants, path points and layout settings, repeated source object, independent outer/inner materials for every part, channel views, lighting, ground, and fracture settings. Fracture recipes restore the intact asset, ready for a new test; they do not serialize moving debris. **File → Load recipe** or drag-and-drop restores it. Versions 1–5 are accepted with defaults for newly introduced controls. Camera position, turntable, wireframe, active inspector, and comparison mode are not serialized.
+**File → Save recipe / Save scene** downloads a version 6 JSON recipe containing shape, seed, geometry, lathe profile, tool variants, path points and layout settings, repeated source object, independent outer/inner materials for every part, channel views, lighting, ground, and fracture settings. Fracture recipes restore the intact asset, ready for a new test; they do not serialize moving debris. **File → Load recipe** or drag-and-drop restores it. Versions 1–5 are accepted with defaults for newly introduced controls and open in Object mode. Scene recipes additionally store independent instance recipes, names, transforms, selection, display/snapping settings, and environment, alongside the original Object draft. Camera position, turntable, active inspector, and Object comparison/wireframe modes are not serialized.
 
 **File → Save image** downloads the current viewport, including floor and reflections, as a PNG. The app currently exports recipes and PNGs. It does not export GLB or baked texture maps.
 

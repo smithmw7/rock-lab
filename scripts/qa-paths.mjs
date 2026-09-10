@@ -114,7 +114,7 @@ try {
   assert.equal(terrain.length, 16, 'Sixteen actual terrain generators must be catalogued');
   for (const id of pathIds) assert.ok(shapes[id]);
   await page.goto(report.url); await page.waitForFunction(() => window.rockLab?.ready); await page.locator('#sound-toggle').click();
-  assert.equal((await snapshot()).recipe.version, 5);
+  assert.equal((await snapshot()).recipe.version, 6);
   for (const id of [...terrain, ...pathIds]) {
     await shape(id); const value = await snapshot();
     assert.equal(value.recipe.options.shape, id); assert.ok(value.finite && value.meshes > 0 && value.bindings); assert.ok(Math.abs(value.bounds.min[1]) < .003, `${id} is grounded`); framed(value, id);
@@ -173,7 +173,7 @@ try {
   const legacy = structuredClone(stored.recipe); legacy.version = 4; legacy.options.shape = 'hammer';
   for (const key of Object.keys(legacy.options)) if (key.startsWith('path')) delete legacy.options[key];
   const legacyFile = path.join(output, 'legacy-v4-parts.json'); await fs.writeFile(legacyFile, JSON.stringify(legacy)); await importFile(legacyFile);
-  const migrated = await snapshot(); assert.equal(migrated.recipe.options.shape, 'hammer'); assert.equal(migrated.recipe.version, 5); assert.deepEqual(migrated.recipe.partMaterials, legacy.partMaterials); assert.equal(migrated.recipe.options.pathPoints.length, 4); report.checks.v4NativeFileMigration = true;
+  const migrated = await snapshot(); assert.equal(migrated.recipe.options.shape, 'hammer'); assert.equal(migrated.recipe.version, 6); assert.deepEqual(migrated.recipe.partMaterials, legacy.partMaterials); assert.equal(migrated.recipe.options.pathPoints.length, 4); report.checks.v4NativeFileMigration = true;
 
   const emptyRecipe=structuredClone(migrated.recipe);Object.assign(emptyRecipe.options,{shape:'brickPath',pathPoints:[{x:0,z:0},{x:.05,z:0}],pathWidth:.5,pathPieceSize:1,pathSpacing:1,pathClosed:false});
   const emptyFile=path.join(output,'short-empty-layout-v5.json');await fs.writeFile(emptyFile,JSON.stringify(emptyRecipe));await importFile(emptyFile);await page.locator('#tab-path').click();

@@ -3,6 +3,23 @@ import './tooltips.css';
 // Help belongs to parameter labels. Action buttons, tabs, preset cards, and
 // disclosure summaries deliberately never receive tooltip behavior.
 export const PARAMETER_HELP = Object.freeze({
+  'scene-name': 'Renames the selected scene object in the object list. A distinct name makes repeated shapes easier to find; the procedural shape and material are unchanged.',
+  'scene-position-x': 'Moves the selected scene object along the world X axis, from -50 to 50 world units. Negative and positive values move to opposite sides of the scene origin.',
+  'scene-position-y': 'Moves the selected scene object vertically, from -50 to 50 world units. Zero places its original base at ground height; higher values lift it and negative values lower it below the ground.',
+  'scene-position-z': 'Moves the selected scene object along the world Z axis, from -50 to 50 world units. Negative and positive values move to opposite sides of the scene origin.',
+  'scene-rotation-x': 'Rotates the selected scene object around its X axis in degrees. Zero keeps its original orientation; a full turn is 360 degrees.',
+  'scene-rotation-y': 'Rotates the selected scene object around its Y axis in degrees, changing its heading. Zero keeps its original orientation; a full turn is 360 degrees.',
+  'scene-rotation-z': 'Rotates the selected scene object around its Z axis in degrees. Zero keeps its original orientation; a full turn is 360 degrees.',
+  'scene-scale-x': 'Scales the selected scene object across its local X axis. One keeps the original width; smaller positive values narrow it and larger values widen it.',
+  'scene-scale-y': 'Scales the selected scene object along its local Y axis. One keeps the original height; smaller positive values shorten it and larger values make it taller.',
+  'scene-scale-z': 'Scales the selected scene object along its local Z axis. One keeps the original depth; smaller positive values flatten it and larger values make it deeper.',
+  'scene-space': 'Sets the Move and Rotate gizmo orientation. World uses the scene axes; Local follows the selected object’s rotated axes. Scale handles always use local axes. Numeric position fields always show world coordinates.',
+  'scene-translation-snap': 'Sets the distance between movement increments, in world units, when Snap is enabled. Smaller values allow finer placement; larger values make objects easier to align on a grid.',
+  'scene-rotation-snap': 'Sets the angle between rotation increments, in degrees, when Snap is enabled. Smaller values allow finer angles; values such as 15, 45, or 90 help align modular pieces.',
+  'scene-scale-snap': 'Sets the increment used while scaling with a gizmo when Snap is enabled. Smaller values allow finer size adjustments; larger values change size in broader steps.',
+  'scene-snap': 'Snaps gizmo movement, rotation, and scale to the increments set in the Scene inspector. Turn it off for free dragging. The grid display is controlled separately.',
+  'scene-grid': 'Shows the reference grid on the ground to help place and align scene objects. Hiding it does not change object positions or the Snap setting.',
+  'scene-render-mode': 'Changes how scene objects are displayed for inspection. Shaded shows their materials, Wireframe shows triangle edges, Collider shows a convex collision approximation for each mesh, and Normals colors surfaces by their normal direction. Collider mode fills concave openings and does not run physics.',
   "path-point": "Chooses one of the route control points for coordinate editing. Points connect in numbered order. Add or insert points to create more bends.",
   "path-x": "Moves the selected route point across the top view, in world units. Negative values move left; positive values move right. The range is -12 to 12. Neighboring points must remain apart.",
   "path-z": "Moves the selected route point vertically in the top view, in world units. Negative values move up; positive values move down. The range is -12 to 12. Neighboring points must remain apart.",
@@ -116,7 +133,9 @@ const VECTOR_HELP = Object.freeze({
 
 const instances = new WeakMap();
 let nextInstance = 0;
-const actionSelector = 'button, [role="button"], [role="tab"], summary, .material-card, [data-shape], [data-ground], [data-look]';
+// Data attributes also describe passive containers such as #stage[data-ground].
+// Exclude actual action controls, not every ancestor carrying preset metadata.
+const actionSelector = 'button, [role="button"], [role="tab"], summary, .material-card';
 
 function descriptionFor(id, legend = false) {
   if (PARAMETER_HELP[id]) return PARAMETER_HELP[id];

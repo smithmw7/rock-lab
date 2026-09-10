@@ -53,6 +53,10 @@
             </div>
           </div>
         </nav>
+        <div class="scene-mode-switch" role="group" aria-label="Workspace mode">
+          <button id="mode-object" aria-pressed="true">Object</button>
+          <button id="mode-scene" aria-pressed="false">Scene</button>
+        </div>
         <div class="header-actions"><button id="sound-toggle" aria-pressed="false" aria-label="Mute sound effects"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="sound-wave" d="M17 8a7 7 0 0 1 0 8m3-11a11 11 0 0 1 0 14"/><path class="sound-slash" d="m3 3 18 18"/></svg><span class="sound-label">Sound on</span></button></div>
       </header>
       <aside>
@@ -60,10 +64,44 @@
           <button role="tab" id="tab-shape" data-panel="shape" aria-selected="true" aria-controls="panel-shape">Shape</button>
           <button role="tab" id="tab-path" data-panel="path" aria-selected="false" aria-controls="panel-path">Path</button>
           <button role="tab" id="tab-material" data-panel="material" aria-selected="false" aria-controls="panel-material">Material</button>
+          <button role="tab" id="tab-scene" data-panel="scene" aria-selected="false" aria-controls="panel-scene" hidden>Scene</button>
           <button role="tab" id="tab-fracture" data-panel="fracture" aria-selected="false" aria-controls="panel-fracture">Fracture</button>
           <button role="tab" id="tab-ground" data-panel="ground" aria-selected="false" aria-controls="panel-ground">Ground</button>
           <button role="tab" id="tab-studio" data-panel="studio" aria-selected="false" aria-controls="panel-studio">Studio</button>
         </nav>
+        <section id="panel-scene" role="tabpanel" aria-labelledby="tab-scene" hidden>
+          <div class="section-title"><span>01</span><h2>Scene objects</h2><span class="count-badge" id="scene-object-count">0 objects</span></div>
+          <p class="control-note scene-mode-note">Build a scene from your procedural objects. Choose a shape to add it, then select an object to edit its shape, material, and transform. Return to Object to test destruction.</p>
+          <div id="scene-objects" class="scene-object-list" role="group" aria-label="Scene objects"></div>
+          <p id="scene-empty" class="scene-empty">Your scene is empty. Use Add current object or choose an object in Shape.</p>
+          <p id="scene-status" class="scene-status" role="status" aria-live="polite"></p>
+          <div class="section-title separated"><span>02</span><h2>Selected object</h2></div>
+          <p id="scene-selection-empty" class="control-note">Select an object in the viewport or list to edit its transform.</p>
+          <div id="scene-selection-controls" hidden>
+            <div class="scene-name-row"><label for="scene-name">Name</label><input id="scene-name" type="text" maxlength="80" autocomplete="off" spellcheck="false" /></div>
+            <div class="scene-transform-group" role="group" aria-labelledby="scene-position-heading"><h3 id="scene-position-heading">Position</h3><div class="scene-vector">
+              <div><label for="scene-position-x">X</label><input id="scene-position-x" aria-label="Position X" type="number" min="-50" max="50" step="0.1" /></div>
+              <div><label for="scene-position-y">Y</label><input id="scene-position-y" aria-label="Position Y" type="number" min="-50" max="50" step="0.1" /></div>
+              <div><label for="scene-position-z">Z</label><input id="scene-position-z" aria-label="Position Z" type="number" min="-50" max="50" step="0.1" /></div>
+            </div></div>
+            <div class="scene-transform-group" role="group" aria-labelledby="scene-rotation-heading"><h3 id="scene-rotation-heading">Rotation <span>degrees</span></h3><div class="scene-vector">
+              <div><label for="scene-rotation-x">X</label><input id="scene-rotation-x" aria-label="Rotation X" type="number" min="-360" max="360" step="1" /></div>
+              <div><label for="scene-rotation-y">Y</label><input id="scene-rotation-y" aria-label="Rotation Y" type="number" min="-360" max="360" step="1" /></div>
+              <div><label for="scene-rotation-z">Z</label><input id="scene-rotation-z" aria-label="Rotation Z" type="number" min="-360" max="360" step="1" /></div>
+            </div></div>
+            <div class="scene-transform-group" role="group" aria-labelledby="scene-scale-heading"><h3 id="scene-scale-heading">Scale</h3><div class="scene-vector">
+              <div><label for="scene-scale-x">X</label><input id="scene-scale-x" aria-label="Scale X" type="number" min="0.05" max="10" step="0.05" /></div>
+              <div><label for="scene-scale-y">Y</label><input id="scene-scale-y" aria-label="Scale Y" type="number" min="0.05" max="10" step="0.05" /></div>
+              <div><label for="scene-scale-z">Z</label><input id="scene-scale-z" aria-label="Scale Z" type="number" min="0.05" max="10" step="0.05" /></div>
+            </div></div>
+          </div>
+          <div class="section-title separated"><span>03</span><h2>Transform settings</h2></div>
+          <div class="select-row scene-setting-row"><label for="scene-space">Gizmo space</label><select id="scene-space"><option value="world">World</option><option value="local">Local</option></select></div>
+          <div class="scene-setting-row"><label for="scene-translation-snap">Move step</label><input id="scene-translation-snap" type="number" min="0.01" max="10" step="0.1" value="0.5" /></div>
+          <div class="scene-setting-row"><label for="scene-rotation-snap">Rotate step</label><input id="scene-rotation-snap" type="number" min="1" max="90" step="1" value="15" /></div>
+          <div class="scene-setting-row"><label for="scene-scale-snap">Scale step</label><input id="scene-scale-snap" type="number" min="0.01" max="2" step="0.05" value="0.1" /></div>
+          <p class="control-note">Turn on Snap in the viewport toolbar to use these increments while dragging a gizmo. Numeric transforms allow precise edits.</p>
+        </section>
         <section id="panel-shape" role="tabpanel" aria-labelledby="tab-shape">
           <div class="section-title"><span>01</span><h2>Object library</h2><span class="count-badge" id="shape-count">Objects</span></div>
           <div id="object-library">
@@ -205,6 +243,26 @@
       </aside>
       <main>
         <div class="stage" id="stage">
+          <div id="scene-toolbar" role="group" aria-label="Scene tools" hidden>
+            <div class="scene-tool-group" role="group" aria-label="Transform tool">
+              <button data-scene-tool="select" aria-label="Select object" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 14 9-7 1-3 7Z"/></svg></button>
+              <button data-scene-tool="translate" aria-label="Move object" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18m-12-6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3m12-6 3 3-3 3"/></svg></button>
+              <button data-scene-tool="rotate" aria-label="Rotate object" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 9a8 8 0 1 0 0 7m0-13v6h-6"/><path d="M9 12h6m-3-3v6"/></svg></button>
+              <button data-scene-tool="scale" aria-label="Scale object" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13v7h7M4 20l7-7m2-9h7v7m0-7-7 7"/></svg></button>
+            </div>
+            <div class="scene-tool-group scene-action-group" role="group" aria-label="Scene actions">
+              <button id="scene-add" aria-label="Add current object"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
+              <button id="scene-duplicate" aria-label="Duplicate selected object"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="1"/><path d="M15 8V4H4v11h4"/></svg></button>
+              <button id="scene-delete" aria-label="Delete selected object"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M9 6V3h6v3m-9 0 1 15h10l1-15M10 10v7m4-7v7"/></svg></button>
+              <button id="scene-frame" aria-label="Frame selected object"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button>
+              <button id="scene-frame-all" aria-label="Frame entire scene"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6"/><rect x="6" y="8" width="5" height="8" rx=".5"/><rect x="13" y="6" width="5" height="10" rx=".5"/></svg></button>
+            </div>
+            <div class="scene-display-controls">
+              <label class="scene-switch" for="scene-snap"><span>Snap</span><input id="scene-snap" type="checkbox" /></label>
+              <label class="scene-switch" for="scene-grid"><span>Grid</span><input id="scene-grid" type="checkbox" checked /></label>
+              <div class="scene-render-field"><label for="scene-render-mode">Render</label><select id="scene-render-mode"><option value="shaded">Shaded</option><option value="wireframe">Wireframe</option><option value="collider">Collider</option><option value="normals">Normals</option></select></div>
+            </div>
+          </div>
           <div class="asset-label"><div class="eyebrow">LIVE GENERATION <span class="live-dot"></span></div><h1 id="asset-title">Weathered boulder</h1><p id="asset-subtitle">Seed 18427 · Stone</p></div>
           <div id="destruction-hud" hidden><span id="destruction-status">Tap an asset to fracture</span><button id="restore-asset">Reset destruction</button></div>
           <div class="stats"><span id="triangles">0</span> triangles<span class="stats-divider">/</span><span id="generation-time">0</span> ms to generate<div id="surface-status">Studio · Planar reflections</div></div>
