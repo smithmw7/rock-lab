@@ -36,7 +36,7 @@ const tintDefaults={tint:'#ffffff',tintAmount:0};
 const state={...defaults,...ASPHALT_DEFAULTS,...OPTICAL_DEFAULTS,...WORKSHOP_DEFAULTS,...WORKSHOP_MATERIAL_DEFAULTS,...structuredClone(PATH_DEFAULTS),...tintDefaults};
 const isPath=()=>PATH_SHAPES.has(state.shape);
 const effectiveShape=()=>state.shape==='objectPath'?state.pathObject:state.shape;
-let soundFamily='auto';
+let soundFamily='auto',pendingAudioUnlock=null;
 const soundForSurface=surface=>surfaces[surface]?.family==='wood'?'wood':surfaces[surface]?.family==='ceramic'?'concrete':['ice','obsidian','glass','quartz','frozenGlass'].includes(surface)?'glass':['block','brick','wall'].includes(state.shape)?'concrete':'rock';
 const getSoundFamily=(slot='primary')=>soundFamily!=='auto'?soundFamily:soundForSurface(slot==='primary'?state.surface:partStates[slot]?.outer.surface??state.surface);
 const audio=createRockAudio({onChange:status=>syncAudio(status)});
@@ -50,12 +50,26 @@ function syncAudio(status=audio.getState()){
   const familyName={rock:'Rock',concrete:'Concrete',glass:'Glass',wood:'Wood'}[getSoundFamily()];
   document.querySelector('#sfx-status').textContent=status.error||status.failed? 'Some sounds could not load. Reload to retry.' :status.loaded<status.expected?'Loading sound effects…':`${familyName} breaks · softer debris impacts${status.muted?' · muted':''}`;
 }
-function unlockAudio(){return Promise.resolve(audio.unlock()).catch(()=>{message('Click Sound on to enable sound effects.');return false;});}
+function unlockAudio(){
+  const pending=Promise.resolve(audio.unlock()).catch(()=>{message('Click Sound on to enable sound effects.');return false;});
+  pendingAudioUnlock=pending;
+  pending.then(()=>{if(pendingAudioUnlock===pending)pendingAudioUnlock=null;});
+  return pending;
+}
 document.querySelector('#sound-toggle').addEventListener('click',()=>{audio.setMuted(!audio.getState().muted);if(!audio.getState().muted)unlockAudio();});
 document.querySelector('#sfx-volume').addEventListener('input',event=>{audio.setVolume(Number(event.target.value));if(Number(event.target.value)>0)unlockAudio();});
 document.querySelector('#sfx-family').addEventListener('change',event=>{soundFamily=event.target.value;syncAudio();});
 function handleFractureEvent(event){
-  if(event.type==='break')audio.playBreak(getSoundFamily(event.materialSlot));
+  if(event.type==='break'){
+    const family=getSoundFamily(event.materialSlot),status=audio.getState();
+    // The first cut can finish before its native gesture resume resolves.
+    // Only the sound waits; stop/mute invalidate the unlock's generation so
+    // reset, disable, and regeneration cannot replay an obsolete break.
+    if(pendingAudioUnlock&&(!status.unlocked||status.contextState!=='running'))pendingAudioUnlock.then(ready=>{
+      if(ready&&fractureRequested&&fractureController?.getStats().enabled)audio.playBreak(family);
+    });
+    else audio.playBreak(family);
+  }
   if(event.type==='collision')audio.playCollision(getSoundFamily(event.materialSlot),event.strength,event.pieceId);
 }
 const materialKeys=['surface','materialRoughness','contrast','snow','noiseScale','noiseAmount','normalStrength','detail','mapView','tint','tintAmount',...Object.keys(OPTICAL_DEFAULTS),...Object.keys(WORKSHOP_MATERIAL_DEFAULTS)];

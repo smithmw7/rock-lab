@@ -291,6 +291,67 @@ try {
   assert.deepEqual(report.browserErrors, []);
 
   await page.close();
+  report.checks.firstTapDuringPendingUnlock = {};
+  for (const cancel of ['none', 'reset', 'disable', 'mute-and-unmute', 'regenerate']) {
+    const tapPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await tapPage.addInitScript(installAudioProbe);
+    const tapErrors = [];
+    tapPage.on('pageerror', error => tapErrors.push(error.message));
+    tapPage.on('console', message => { if (message.type() === 'error') tapErrors.push(message.text()); });
+    try {
+      const tapUrl = new URL(report.url); tapUrl.searchParams.set('fracture', '1');
+      await tapPage.goto(tapUrl.href);
+      await tapPage.waitForFunction(() => window.rockLab?.ready && window.rockLab.audio.getState().loaded === 16);
+      await tapPage.locator('#fr-method').selectOption('simple');
+      await tapPage.locator('#fr-fragmentCount').evaluate(element => { element.value = '6'; element.dispatchEvent(new Event('input', { bubbles: true })); });
+      // Keep the native gesture-driven resume, but hold its promise until the
+      // worker has finished the first cut. This reproduces the browser race
+      // without adding click delays or changing geometry scheduling.
+      await tapPage.evaluate(() => {
+        const context = window.rockLab.audio.getAnalyser().context;
+        const originalResume = context.resume.bind(context);
+        context.resume = () => {
+          const native = originalResume();
+          window.__qaResumeStarted = true;
+          const gate = new Promise(resolve => { window.__qaReleaseResume = resolve; });
+          return native.then(() => gate);
+        };
+      });
+      const tapPoint = await tapPage.evaluate(() => {
+        const lab = window.rockLab, mesh = lab.fracture.getMeshes()[0];
+        mesh.updateWorldMatrix(true, false); mesh.geometry.computeBoundingSphere();
+        const point = mesh.geometry.boundingSphere.center.clone().applyMatrix4(mesh.matrixWorld).project(lab.camera);
+        const rect = lab.renderer.domElement.getBoundingClientRect();
+        return { x: rect.left + (point.x + 1) * rect.width / 2, y: rect.top + (1 - point.y) * rect.height / 2 };
+      });
+      await tapPage.mouse.click(tapPoint.x, tapPoint.y);
+      await tapPage.waitForFunction(() => window.__qaResumeStarted && window.rockLab.fracture.getStats().fragments > 0 && !window.rockLab.fracture.getStats().busy);
+      const waiting = await tapPage.evaluate(() => ({ audio: window.rockLab.audio.getState(), fragments: window.rockLab.fracture.getStats().fragments }));
+      assert.equal(waiting.audio.unlocked, false);
+      assert.equal(eventCount(waiting.audio, 'break'), 0);
+      if (cancel === 'reset') await tapPage.locator('#fr-reset').click();
+      if (cancel === 'disable') await tapPage.locator('#fr-enabled').uncheck();
+      if (cancel === 'mute-and-unmute') {
+        await tapPage.locator('#sound-toggle').click();
+        await tapPage.locator('#sound-toggle').click();
+      }
+      if (cancel === 'regenerate') {
+        await tapPage.locator('#tab-shape').click();
+        await tapPage.locator('#new-seed').click();
+      }
+      const beforeRelease = await tapPage.evaluate(() => window.rockLab.fracture.getStats().fragments);
+      await tapPage.evaluate(() => window.__qaReleaseResume());
+      await tapPage.waitForTimeout(150);
+      const after = await tapPage.evaluate(() => ({ audio: window.rockLab.audio.getState(), fragments: window.rockLab.fracture.getStats().fragments, probe: window.__audioProbe }));
+      assert.equal(eventCount(after.audio, 'break'), cancel === 'none' ? 1 : 0,
+        cancel === 'none' ? 'The completed first tap must play once its gesture unlock finishes' : `${cancel} must cancel the pending first-tap sound`);
+      assert.equal(after.fragments, beforeRelease, 'Finishing audio unlock must not create any delayed geometry cuts');
+      if (cancel === 'none') assert.ok(after.probe.starts.some(start => start.contextState === 'running' && start.peak > .001));
+      assert.deepEqual(tapErrors, []);
+      report.checks.firstTapDuringPendingUnlock[cancel] = { passed: true, fragmentsBeforeUnlock: waiting.fragments, breakEventsAfterUnlock: eventCount(after.audio, 'break'), noDelayedCuts: true };
+    } finally { await tapPage.close(); }
+  }
+
   const edgePage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await edgePage.addInitScript(installAudioProbe);
   const edgeErrors = [];
