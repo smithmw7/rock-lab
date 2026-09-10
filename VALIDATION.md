@@ -2,6 +2,18 @@
 
 Checked September 9, 2026.
 
+
+## Scrolling object library and modular kit
+
+- Added 20 generated objects for 38 total: seven primitives, nine architecture forms, and four furniture pieces. Every catalog entry has a name, icon, and description in the scrolling library.
+- Geometry verification passes 228 baseline and 76 displacement cases across all 38 shapes. Maximum tested geometry remains 34,752 triangles. All 36 snapshots for the original 18 forms retain identical attributes and transforms.
+- Actual three-pinata/Rapier verification passes 48 cases across all 38 forms. New assemblies are made from separate closed convex pieces with verified support connections. Extreme wear initially exposed microscopic holes on thin parts; the new kit now rebuilds clean closed hulls before upload and preserves face/bevel metadata.
+- `npm run verify:kit` independently audits 80 extreme combinations, 476 meshes, and 580,128 welded edges. Each edge has exactly two incident triangles. These checks include minimum/maximum detail, wear, bevel, and displacement with high-frequency shape noise. The check runs in Pages CI.
+- `npm run qa:objects` passes 12 browser groups on frozen source: all 20 new objects rendered and captured, nominal 0.8/1.5/2.5-unit block dimensions, actual triangle-ray aperture checks, category counts, search/clear/empty state, list scrolling independent of the inspector, keyboard focus without unwanted generation, actual chair recipe download/import, five distinct seeded variations, and tap/reset on round arch, chair, and bridge.
+- Each browser tap created six fragments; reset restored the exact source geometry signature. The chair recipe restored its independent outer/inner materials and revealed its selected row after loading from another inspector.
+- At 390×844, actual touch swipes scrolled the library and taps selected furniture; the page had no horizontal overflow. All 20 final object screenshots, the variations view, fracture captures, and mobile controls were visually inspected. No browser errors or warnings were recorded.
+- Existing menu QA still passes save/load, image download, keyboard/dismissal, view actions, help, and mobile layout. Tooltip QA passes 87 labels, including search help, with no tooltips on action buttons, cards, or tabs.
+
 ## Translucent materials: current evidence
 
 - Research compared native Three physical transmission, Drei MeshTransmissionMaterial, and geometry-aware MeshRefractionMaterial. The choice, sources, controls, and rendering limits are in `TRANSLUCENT-MATERIALS.md`.

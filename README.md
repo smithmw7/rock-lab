@@ -15,7 +15,7 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 
 | | What's inside |
 | :--- | :--- |
-| **18 shapes** | Boulders, cliffs, crystals, arches, blocks, bricks, spheres, walls, monoliths, stairs, ruins, and more |
+| **38 objects** | Rocks, arches, a bridge, furniture, columns, blocks, ramps, walls, stairs, and ruins in a searchable scrolling library |
 | **10 materials** | Slate, sandstone, limestone, granite, basalt, obsidian, glacier ice, clear glass, quartz, and translucent ice |
 | **5 grounds** | Studio, wet asphalt, concrete, sand, and wooden planks, with live planar reflections |
 | **Surface detail** | Seeded noise, normal relief, grain, cracks, contrast, snow, and geometry displacement |
@@ -26,7 +26,7 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 
 ## A quick first session
 
-1. Pick a **world preset** or choose a form in **Shape**. Change the seed to generate variations.
+1. Pick a **world preset** or browse the scrolling **Shape** library. Use **All**, a category, or search to find an object, then change the seed to generate variations.
 2. Open **Material** to adjust the finish. **Outer / Inner** selects the original skin or exposed fracture faces.
 3. Try **Ground → Wet asphalt**, then adjust roughness, normal strength, and puddle ripples.
 4. Enable **Fracture → Tap destruction** and click the asset. Drag to orbit; scroll or pinch to zoom.
@@ -49,6 +49,7 @@ Open [localhost:5207](http://127.0.0.1:5207/). Choose another free port if it is
 
 ```sh
 npm run verify                 # Seeded geometry and material checks
+npm run verify:kit             # Closed meshes across kit parameter extremes
 npm run verify:fracture        # Actual fracture geometry and physics
 npm run build                 # Portable static app in dist/
 npm run verify:publication     # Check deployable assets and exclusions
@@ -66,6 +67,7 @@ The GitHub Actions workflow builds and deploys `main` to Pages. Relative asset p
 Start with [`src/geometry.js`](src/geometry.js), [`src/material.js`](src/material.js), [`src/ground.js`](src/ground.js), and [`src/fracture.js`](src/fracture.js) to reuse the generators in another Three.js project. The [full guide](docs/USER-GUIDE.md) explains the controls, integration, rendering tradeoffs, and game-asset pipeline.
 
 - [Glass, crystal, and ice shader research](TRANSLUCENT-MATERIALS.md)
+- [Object library: all 38 forms and the new modular kit](docs/OBJECT-LIBRARY.md)
 - [Stylized wood research and proposed pipeline](STYLIZED-WOOD-RESEARCH.md) (research; wood assets are not implemented)
 - [Validation notes](VALIDATION.md)
 - [Contributor rules](AGENTS.md)

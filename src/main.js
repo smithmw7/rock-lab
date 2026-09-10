@@ -11,8 +11,10 @@ import { createFracturePanel } from './fracture-panel.js';
 import { createRockAudio } from './audio.js';
 import { setupMenus } from './menu.js';
 import { setupParameterTooltips } from './tooltips.js';
+import { createObjectLibrary } from './library.js';
 import './style.css';
 import './menu.css';
+import './library.css';
 
 const tintDefaults={tint:'#ffffff',tintAmount:0};
 const state={...defaults,...ASPHALT_DEFAULTS,...OPTICAL_DEFAULTS,...tintDefaults};
@@ -43,7 +45,7 @@ const innerState={...innerDefaults};
 let materialTarget='outer',fractureController=null,fractureLoading=null,fractureRequested=false,fracturePanel=null;
 let fractureOptions=sanitizeFractureOptions(FRACTURE_DEFAULTS);
 const currentMaterialState=()=>materialTarget==='inner'?innerState:state;
-let family='natural', inspector='shape', viewMode='single', selectedLook='alpine';
+let inspector='shape', viewMode='single', selectedLook='alpine';
 let materialFamily='rock';
 const materialFamilyFor=surface=>Object.hasOwn(OPTICAL_PRESETS,surface)?'optical':'rock';
 let rotation=false,lastGeneration=0,generationCount=0,pendingGenerate=0,frameSize=5.4,toastTimer;
@@ -132,20 +134,13 @@ for(const spec of specs){
     syncInputs();
   });
 }
-for(const group of shapeGroups){
-  const button=document.createElement('button');button.role='tab';button.dataset.family=group.id;button.textContent=group.label;
-  button.addEventListener('click',()=>{family=group.id;renderShapes();syncInputs();});
-  document.querySelector('#shape-families').append(button);
-}
-function renderShapes(){
-  const container=document.querySelector('#shapes');container.replaceChildren();
-  for(const id of shapeGroups.find(group=>group.id===family).shapes){
-    const entry=shapes[id],button=document.createElement('button');button.dataset.shape=id;
-    button.innerHTML=`<svg viewBox="0 0 32 32" aria-hidden="true"><path d="${entry.icon}"/></svg><span>${entry.label}</span>`;
-    button.addEventListener('click',()=>{state.shape=id;selectedLook='';generate(true);});container.append(button);
-  }
-  document.querySelector('#shape-description').textContent=shapeGroups.find(group=>group.id===family).description;
-}
+const objectLibrary=createObjectLibrary({
+  root:document.querySelector('#object-library'),shapes,groups:shapeGroups,selected:state.shape,
+  onSelect:id=>{state.shape=id;selectedLook='';generate(true);},
+});
+document.querySelector('#shape-count').textContent=`${Object.keys(shapes).length} objects`;
+document.querySelector('#asset-counts').textContent=`${Object.keys(shapes).length} objects · ${Object.keys(surfaces).length} materials · ${Object.keys(grounds).length} grounds`;
+function renderShapes(options={}){objectLibrary.select(state.shape,options);}
 for(const [id,entry] of Object.entries(surfaces)){
   const button=document.createElement('button');button.dataset.surface=id;button.className='material-card';
   button.innerHTML=`<i class="material-swatch ${id}"></i><span><strong>${entry.label}</strong><small>${entry.description}</small></span>`;
@@ -169,14 +164,15 @@ for(const [id,look] of Object.entries(looks)){
   button.addEventListener('click',()=>applyLook(id));document.querySelector('#looks').append(button);
 }
 function applyLook(id){
-  Object.assign(state,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,tintDefaults,looks[id].options);selectedLook=id;family=shapeGroupFor(state.shape);materialFamily=materialFamilyFor(currentMaterialState().surface);
-  renderShapes();updateMaterials();ground.update(state);applyLighting();generate(true);
+  Object.assign(state,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,tintDefaults,looks[id].options);selectedLook=id;materialFamily=materialFamilyFor(currentMaterialState().surface);
+  renderShapes({reveal:true});updateMaterials();ground.update(state);applyLighting();generate(true);
 }
 function setInspector(id){
   inspector=id;
   document.querySelectorAll('[data-panel]').forEach(el=>{const active=el.dataset.panel===id;el.setAttribute('aria-selected',active);el.tabIndex=active?0:-1;});
   document.querySelectorAll('aside > section[role="tabpanel"]').forEach(el=>el.hidden=el.id!==`panel-${id}`);
   document.querySelector('aside').scrollTop=0;
+  if(id==='shape')requestAnimationFrame(()=>objectLibrary.revealSelection());
 }
 document.querySelectorAll('[data-panel]').forEach(el=>el.addEventListener('click',()=>setInspector(el.dataset.panel)));
 for(const tablist of document.querySelectorAll('[role="tablist"]'))tablist.addEventListener('keydown',event=>{
@@ -204,8 +200,8 @@ function syncInputs(){
   for(const [attr,value] of [['shape',state.shape],['surface',currentMaterialState().surface],['ground',state.ground],['channel',currentMaterialState().mapView],['look',selectedLook]]){
     document.querySelectorAll(`[data-${attr}]`).forEach(el=>{const active=el.dataset[attr]===value;el.classList.toggle('active',active);el.setAttribute('aria-pressed',active);});
   }
-  document.querySelectorAll('[data-family]').forEach(el=>{const active=el.dataset.family===family;el.setAttribute('aria-selected',active);el.tabIndex=active?0:-1;});
-  const primitive=shapeGroupFor(state.shape)==='primitives';
+  objectLibrary.select(state.shape);
+  const primitive=['primitives','architecture','furniture'].includes(shapeGroupFor(state.shape));
   document.querySelector('#facets-label').textContent=primitive?'Geometry detail':'Plane cuts';
   document.querySelector('#roughness-label').textContent=primitive?'Distortion':'Irregularity';
   document.querySelector('#bevel-label').textContent=primitive?'Edge bevel':'Chipped edges';
@@ -350,9 +346,9 @@ renderer.domElement.addEventListener('pointerup',event=>{
 document.querySelector('#reset-asphalt').addEventListener('click',()=>{Object.assign(state,ASPHALT_DEFAULTS);selectedLook='';ground.update(state);syncInputs();message('Asphalt detail restored');});
 document.querySelector('#reset').addEventListener('click',()=>{
   setFractureEnabled(false);fractureOptions=sanitizeFractureOptions(FRACTURE_DEFAULTS);fractureController?.update(fractureOptions);fracturePanel.setOptions(fractureOptions);
-  Object.assign(state,defaults,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,tintDefaults);Object.assign(innerState,innerDefaults);materialTarget='outer';materialFamily='rock';family='natural';selectedLook='alpine';rotation=false;material.wireframe=innerMaterial.wireframe=false;
+  Object.assign(state,defaults,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,tintDefaults);Object.assign(innerState,innerDefaults);materialTarget='outer';materialFamily='rock';selectedLook='alpine';rotation=false;material.wireframe=innerMaterial.wireframe=false;
   document.querySelector('#rotate').checked=false;document.querySelector('#wireframe').checked=false;
-  renderShapes();updateMaterials();ground.update(state);applyLighting();generate(true);message('Default studio restored');
+  renderShapes({reveal:true,resetFilters:true});updateMaterials();ground.update(state);applyLighting();generate(true);message('Default studio restored');
 });
 function download(data,name,type){
   const url=URL.createObjectURL(data instanceof Blob?data:new Blob([data],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
@@ -385,7 +381,7 @@ async function loadRecipe(data){
   }
   fractureOptions=sanitizeFractureOptions({...FRACTURE_DEFAULTS,...(data.version===3?data.fracture:{})});
   fracturePanel.setOptions(fractureOptions);fractureController?.update(fractureOptions);
-  selectedLook='';family=shapeGroupFor(state.shape);materialFamily=materialFamilyFor(currentMaterialState().surface);renderShapes();updateMaterials();ground.update(state);applyLighting();generate(true);
+  selectedLook='';materialFamily=materialFamilyFor(currentMaterialState().surface);renderShapes({reveal:true});updateMaterials();ground.update(state);applyLighting();generate(true);
   if(data.version===3&&data.fracture?.enabled)await setFractureEnabled(true);
 }
 async function readRecipe(file){if(!file)return;try{await loadRecipe(JSON.parse(await file.text()));message('Asset recipe restored');}catch{message('Please choose a Rock Lab recipe JSON file.');}}
@@ -423,7 +419,7 @@ const menus=setupMenus(document.querySelector('.app-menubar'),{
 const cleanupTooltips=setupParameterTooltips();
 void audio.load().catch(()=>syncAudio());
 window.addEventListener('pagehide',()=>audio.stop());
-if(import.meta.hot)import.meta.hot.dispose(()=>{audio.dispose();menus.destroy();cleanupTooltips();});
+if(import.meta.hot)import.meta.hot.dispose(()=>{audio.dispose();menus.destroy();objectLibrary.destroy();cleanupTooltips();});
 window.rockLab={state,innerState,recipe,loadRecipe,generate,renderer,scene,camera,material,innerMaterial,ground,audio,setFractureEnabled,get fracture(){return fractureController;},getStats:()=>({triangles:Number(document.querySelector('#triangles').textContent.replaceAll(',','')),generationMs:lastGeneration,generationCount,drawCalls:renderer.info.render.calls,geometries:renderer.info.memory.geometries,programs:renderer.info.programs?.length,viewMode,ground:ground.getStats(),audio:audio.getState(),fracture:fractureController?.getStats()??{enabled:false}}),ready:true};
 
 window.render_game_to_text=()=>JSON.stringify({

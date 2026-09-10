@@ -13,13 +13,17 @@ Open [Rock Lab](http://127.0.0.1:5207/). This project uses a strict port. `npm r
 
 ## Shape families and sets
 
-The **Shape** inspector has three family tabs, each containing six forms:
+The **Shape** inspector opens to a scrollable **All** library. Search by object name or description, or filter by family. The selected row stays highlighted, and geometry controls remain below the bounded list.
 
 | Family | Forms | Intended uses |
 | --- | --- | --- |
 | Natural | Boulder, outcrop, ledge, spire, crystals, arch | Terrain accents, cover, cliff silhouettes, icy encounters |
-| Primitives | Block, brick, sphere, cylinder, wedge, soft block | Material studies, modular props, collision-friendly building pieces |
+| Primitives | Block, brick, sphere, cylinder, wedge, soft block, small/medium/large blocks, low/steep/corner ramps, platform | Material studies, modular props, collision-friendly building pieces |
 | Structures | Block wall, monolith, columns, stairs, ruins, cairn | Running-bond masonry, landmarks, volcanic columns, route markers, ruins kits |
+| Architecture | Round/pointed/flat arches, small bridge, round/square/broken columns, plinth, doorway | Openings, crossings, architectural supports, and display pieces |
+| Furniture | Bench, table, chair, stool | Assembled seating and table props with solid component parts |
+
+There are **38 objects**, including a [20-object modular expansion](OBJECT-LIBRARY.md). The new kit uses shared units; its small, medium, and large blocks have nominal sides of 0.8, 1.5, and 2.5 units before edge wear or displacement. Existing rock forms keep their original presentation scale. These are geometry presets and can use any current material; they do not introduce a procedural wood material.
 
 Six **world presets** combine shapes, materials, lighting, and ground: Alpine, Desert, Volcanic, Ruins, Quarry, and Frozen. These are starting recipes. Every component can be changed independently afterward. The Structures family contains actual multi-piece assemblies, not thumbnails of suggested assets.
 

@@ -1,7 +1,9 @@
 export const shapeGroups = [
   {id:'natural',label:'Natural',description:'Fractured forms for landscapes and encounter spaces.',shapes:['boulder','stack','slab','spire','crystals','arch']},
-  {id:'primitives',label:'Primitives',description:'Simple solids for material studies and modular props.',shapes:['block','brick','sphere','cylinder','wedge','roundedBlock']},
+  {id:'primitives',label:'Primitives',description:'Solid building pieces for material studies and level layouts.',shapes:['block','brick','sphere','cylinder','wedge','roundedBlock','smallBlock','mediumBlock','largeBlock','lowRamp','steepRamp','cornerRamp','platform']},
   {id:'structures',label:'Structures',description:'Assembled pieces for ruins, landmarks, and level kits.',shapes:['wall','monolith','columns','stairs','ruins','cairn']},
+  {id:'architecture',label:'Architecture',description:'Open arches, crossings, columns, and architectural supports.',shapes:['roundArch','pointedArch','flatArch','bridge','roundColumn','squareColumn','brokenColumn','plinth','doorway']},
+  {id:'furniture',label:'Furniture',description:'Simple assembled props with recognizable seats, tops, and supports.',shapes:['bench','table','chair','stool']},
 ];
 export const shapes = {
   boulder:{label:'Boulder',title:'Weathered boulder',icon:'M4 25 2 15 9 5 22 3 30 15 26 28 13 30Z M2 15 16 13 22 3 M16 13 26 28 M16 13 13 30'},
@@ -22,7 +24,36 @@ export const shapes = {
   stairs:{label:'Stairs',title:'Carved stone stairs',icon:'M2 29 V23 H8 V17 H14 V11 H20 V5 H29 V29Z M2 23 H29 M8 17 H29 M14 11 H29'},
   ruins:{label:'Ruins',title:'Courtyard ruins',icon:'M2 29 V10 H9 V18 H15 V7 H22 V13 H29 V29Z M2 20 H29 M2 25 H29 M5 10 V20 M18 7 V20 M12 20 V29 M24 20 V29'},
   cairn:{label:'Cairn',title:'Trail marker cairn',icon:'M3 29 2 23 9 20 23 21 30 25 27 29Z M6 20 7 14 20 12 26 18 23 21 M11 13 9 8 16 2 23 8 20 12'},
+  smallBlock:{label:'Small block',title:'Small building block',description:'Compact cube for props and accents',icon:'M9 12 16 9 23 12 23 21 16 25 9 21Z M9 12 16 16 23 12 M16 16 16 25'},
+  mediumBlock:{label:'Medium block',title:'Medium building block',description:'Mid-size cube for modular layouts',icon:'M6 10 16 5 26 10 26 23 16 28 6 23Z M6 10 16 15 26 10 M16 15 16 28'},
+  largeBlock:{label:'Large block',title:'Large building block',description:'Large cube for cover and foundations',icon:'M2 8 16 1 30 8 30 25 16 31 2 25Z M2 8 16 15 30 8 M16 15 16 31'},
+  lowRamp:{label:'Low ramp',title:'Gentle approach ramp',description:'Long, shallow incline with a flat base',icon:'M2 25 23 10 30 14 30 24 9 29Z M2 25 9 29 30 14 M23 10 23 21'},
+  steepRamp:{label:'Steep ramp',title:'Steep ascent ramp',description:'Short, high incline for elevation changes',icon:'M4 27 20 3 28 7 28 24 12 30Z M4 27 12 30 28 7 M20 3 20 20'},
+  cornerRamp:{label:'Corner ramp',title:'Corner transition ramp',description:'Two slopes meet at a raised corner',icon:'M2 23 16 4 30 23 16 30Z M16 4 16 30 M2 23 16 17 30 23'},
+  platform:{label:'Platform',title:'Low modular platform',description:'Broad, shallow slab for staging props',icon:'M2 12 19 5 30 11 30 19 13 27 2 21Z M2 12 13 18 30 11 M13 18 13 27'},
+  roundArch:{label:'Round arch',title:'Round masonry arch',description:'Semicircular opening with segmented stones',icon:'M3 29 V16 A13 13 0 0 1 29 16 V29 H23 V16 A7 7 0 0 0 9 16 V29Z M3 16 H9 M29 16 H23 M16 3 V9 M7 7 11 11 M25 7 21 11'},
+  pointedArch:{label:'Pointed arch',title:'Pointed gothic arch',description:'Tall opening rising to a pointed crown',icon:'M3 29 V17 Q3 8 16 2 Q29 8 29 17 V29 H23 V18 Q23 12 16 8 Q9 12 9 18 V29Z M16 2 V8 M3 18 H9 M23 18 H29'},
+  flatArch:{label:'Flat arch',title:'Flat masonry arch',description:'Low wedge-stone lintel over two piers',icon:'M3 29 V9 H29 V29 H23 V16 H9 V29Z M3 16 H29 M10 9 12 16 M16 9 V16 M22 9 20 16'},
+  bridge:{label:'Small bridge',title:'Small arched bridge',description:'Raised deck over an open underpass',icon:'M2 17 Q16 6 30 17 V27 H24 Q16 13 8 27 H2Z M2 17 V11 Q16 1 30 11 V17 M7 9 V14 M25 9 V14 M2 17 Q16 8 30 17'},
+  roundColumn:{label:'Round column',title:'Round column with capital',description:'Faceted shaft, wide base, and capital',icon:'M7 3 H25 V7 H7Z M10 7 V25 H22 V7 M7 25 H25 V30 H7Z M14 7 V25 M18 7 V25'},
+  squareColumn:{label:'Square column',title:'Square pier column',description:'Square shaft between stepped end blocks',icon:'M5 3 H27 V7 H5Z M9 7 V25 H23 V7 M5 25 H27 V30 H5Z M18 7 V25'},
+  brokenColumn:{label:'Broken column',title:'Broken column fragment',description:'Short shaft with an uneven fractured crown',icon:'M8 25 V10 L13 6 18 10 24 4 V25 M5 25 H27 V30 H5Z M13 10 V25 M20 11 V25'},
+  plinth:{label:'Plinth',title:'Stepped display plinth',description:'Raised pedestal for statues and props',icon:'M3 25 H29 V30 H3Z M6 21 H26 V25 H6Z M9 9 H23 V21 H9Z M5 3 H27 V9 H5Z M18 9 V21'},
+  doorway:{label:'Doorway',title:'Square lintel doorway',description:'Rectangular opening with a solid lintel',icon:'M3 29 V3 H29 V29 H23 V9 H9 V29Z M3 9 H9 M23 9 H29 M3 3 9 9 M29 3 23 9'},
+  bench:{label:'Bench',title:'Simple supported bench',description:'Long seat on two sturdy trestles',icon:'M2 13 22 6 30 10 10 18Z M2 13 V17 L10 22 30 14 V10 M6 20 V28 H10 V22 M24 16 V24 H28 V15'},
+  table:{label:'Table',title:'Four-leg table',description:'Wide top with four legs and an apron',icon:'M2 9 19 3 30 9 13 16Z M2 9 V13 L13 20 30 13 V9 M5 15 V28 M12 20 V31 M26 15 V27 M20 7 V4'},
+  chair:{label:'Chair',title:'Straight-back chair',description:'Four legs, square seat, and a framed back',icon:'M8 16 V3 H24 V16 M8 7 H24 M8 12 H24 M4 19 19 14 28 19 13 25Z M4 19 V28 M13 25 V31 M28 19 V28 M22 22 V29'},
+  stool:{label:'Stool',title:'Round-seat stool',description:'Circular seat on splayed legs',icon:'M5 10 C5 3 27 3 27 10 C27 17 5 17 5 10 V14 C5 21 27 21 27 14 V10 M9 18 6 29 M23 18 26 29 M16 19 V31 M8 25 H25'},
 };
+const existingDescriptions = {
+  boulder:'Clustered rock with broad fractured planes',stack:'Layered stone steps and ledges',slab:'Wide broken slab with a low silhouette',
+  spire:'Tall, tapered natural rock formation',crystals:'Faceted crystal points in a cluster',arch:'Rough opening built from natural rock',
+  block:'Single solid with worn bevelled edges',brick:'Long rectangular masonry unit',sphere:'Rounded solid for comparing materials',
+  cylinder:'Simple faceted cylindrical solid',wedge:'Triangular solid with a sloping face',roundedBlock:'Softened block with rounded corners',
+  wall:'Five courses of staggered masonry',monolith:'Tall, narrow standing stone',columns:'Cluster of stepped basalt-like shafts',
+  stairs:'Five solid steps in a straight flight',ruins:'Broken piers, lintel, and fallen masonry',cairn:'Stacked stones for a trail marker',
+};
+for (const [id, description] of Object.entries(existingDescriptions)) shapes[id].description = description;
 export const surfaces = {
   stone:{label:'Alpine slate',short:'Slate',description:'Cool planes · painted chips',roughness:.85},
   ice:{label:'Glacier ice',short:'Ice',description:'Cyan depth · pale fractures',roughness:.30},

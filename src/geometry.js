@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { ConvexHull } from 'three/addons/math/ConvexHull.js';
+import { createKitParts, KIT_GROUPS, KIT_SHAPES } from './kit-geometry.js';
 
 // All surface detail here is real geometry. Faces remain coherent polygons until
 // the final upload, so triangulation never becomes the visible surface language.
@@ -8,13 +10,18 @@ const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, x));
 
 export const SHAPE_GROUPS = [
   { id: 'natural', label: 'Natural', shapes: ['boulder', 'stack', 'slab', 'spire', 'crystals', 'arch'] },
-  { id: 'primitives', label: 'Primitives', shapes: ['block', 'brick', 'sphere', 'cylinder', 'wedge', 'roundedBlock'] },
+  { id: 'primitives', label: 'Primitives', shapes: ['block', 'brick', 'sphere', 'cylinder', 'wedge', 'roundedBlock', ...KIT_GROUPS.primitives] },
   { id: 'structures', label: 'Structures', shapes: ['wall', 'monolith', 'columns', 'stairs', 'ruins', 'cairn'] },
+  { id: 'architecture', label: 'Architecture', shapes: KIT_GROUPS.architecture },
+  { id: 'furniture', label: 'Furniture', shapes: KIT_GROUPS.furniture },
 ];
 export const SHAPE_LABELS = {
   boulder: 'Boulder', stack: 'Rock steps', slab: 'Slab', spire: 'Spire', crystals: 'Crystals', arch: 'Rock arch',
   block: 'Block', brick: 'Brick', sphere: 'Sphere', cylinder: 'Cylinder', wedge: 'Wedge', roundedBlock: 'Rounded block',
   wall: 'Block wall', monolith: 'Monolith', columns: 'Basalt columns', stairs: 'Stairs', ruins: 'Ruins', cairn: 'Cairn',
+  smallBlock: 'Small block', mediumBlock: 'Medium block', largeBlock: 'Large block', lowRamp: 'Low ramp', steepRamp: 'Steep ramp', cornerRamp: 'Corner ramp', platform: 'Platform',
+  roundArch: 'Round arch', pointedArch: 'Pointed arch', flatArch: 'Flat arch', bridge: 'Bridge', roundColumn: 'Round column', squareColumn: 'Square column', brokenColumn: 'Broken column', plinth: 'Plinth', doorway: 'Doorway',
+  bench: 'Bench', table: 'Table', chair: 'Chair', stool: 'Stool',
 };
 
 function randomGenerator(seed) {
@@ -474,7 +481,7 @@ function displaceGeometry(source, options, subdivisions) {
   const frequency = options.geometryNoiseScale;
   // Amplitude falls as frequency increases, keeping the field injective enough
   // to avoid flipped faces even at the maximum noise setting.
-  const amplitude = 0.13 * options.displacement / (1 + frequency * 0.65);
+  const amplitude = 0.13 * options.displacement * (source.userData.displacementWeight ?? 1) / (1 + frequency * 0.65);
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), normal = new THREE.Vector3();
   const validTriangles = [];
   for (const triangle of triangles) {
@@ -614,6 +621,118 @@ function roundedGeometry(options) {
   return output;
 }
 
+function kitPrismFaces(section, depth, rng) {
+  const points = section.map(([x, y]) => new THREE.Vector3(x, y, 0));
+  const signedArea = points.reduce((sum, p, i) => {
+    const next = points[(i + 1) % points.length];
+    return sum + p.x * next.y - next.x * p.y;
+  }, 0);
+  if (signedArea < 0) points.reverse();
+  const front = points.map(p => p.clone().setZ(depth / 2));
+  const back = points.map(p => p.clone().setZ(-depth / 2));
+  const faces = [polygon(front, new THREE.Vector3(0, 0, 1), .52), polygon(back, new THREE.Vector3(0, 0, -1), .46)];
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length, edge = points[j].clone().sub(points[i]);
+    faces.push(polygon([front[i], back[i], back[j], front[j]], new THREE.Vector3(edge.y, -edge.x, 0).normalize(), .43 + rng() * .14));
+  }
+  return faces;
+}
+
+function closedKitHull(sourceFaces) {
+  // Intersecting bevel cuts can leave micrometre slivers on thin furniture.
+  // Merge those vertices, then rebuild the closed convex surface instead of
+  // dropping a degenerate triangle and leaving a hole for the fracture engine.
+  let vertices = uniquePoints(sourceFaces.flatMap(face => face.vertices), .0002)
+    .map(point => new THREE.Vector3(Math.fround(point.x), Math.fround(point.y), Math.fround(point.z)));
+  let hull;
+  for (let pass = 0; pass < 256; pass++) {
+    hull = new ConvexHull().setFromPoints(vertices);
+    let redundant = null;
+    for (const face of hull.faces) {
+      const triangle = [face.edge.head().point, face.edge.next.head().point, face.edge.next.next.head().point];
+      const area = triangle[1].clone().sub(triangle[0]).cross(triangle[2].clone().sub(triangle[0])).lengthSq();
+      // Leave area headroom for all three possible subdivision levels and
+      // displacement. Otherwise a valid base sliver would reopen after detail.
+      if (area > 1e-10) continue;
+      // The vertex opposite the longest edge is the nearly collinear one.
+      const edges = triangle.map((point, i) => point.distanceToSquared(triangle[(i + 1) % 3]));
+      redundant = triangle[(edges.indexOf(Math.max(...edges)) + 2) % 3];
+      break;
+    }
+    if (!redundant) break;
+    vertices = vertices.filter(point => point !== redundant);
+  }
+  return hull.faces.map(face => {
+    const vertices = [face.edge.head().point, face.edge.next.head().point, face.edge.next.next.head().point];
+    const center = vertices.reduce((sum, point) => sum.add(point), new THREE.Vector3()).multiplyScalar(1 / 3);
+    // Recover the parent planar face, keeping its material metadata identical
+    // across all hull triangles that form one broad face or bevel strip.
+    let source = sourceFaces[0], closest = Infinity;
+    for (const candidate of sourceFaces) {
+      const score = (1 - candidate.normal.dot(face.normal)) * 2 + Math.abs(candidate.normal.dot(center.clone().sub(candidate.vertices[0])));
+      if (score < closest) { closest = score; source = candidate; }
+    }
+    return { vertices, normal: face.normal.clone(), tone: source.tone, bevel: source.bevel };
+  });
+}
+
+function buildKitAsset(options, material) {
+  const group = new THREE.Group(), rng = randomGenerator(options.seed), solids = [];
+  const furniture = KIT_GROUPS.furniture.includes(options.shape);
+  group.name = `Procedural ${SHAPE_LABELS[options.shape]} ${options.seed}`;
+  for (const part of createKitParts(options.shape, options.facets)) {
+    let faces = part.kind === 'prism' ? kitPrismFaces(part.section, part.depth, rng)
+      : designedFaces(part.kind, rng, { ...options, roughness: 0, bevel: 0 });
+    if (part.kind !== 'prism') {
+      const scale = new THREE.Matrix4().makeScale(...part.size.map(value => value / 2));
+      const normalMatrix = new THREE.Matrix3().getNormalMatrix(scale);
+      faces = faces.map(face => ({ ...face, vertices: face.vertices.map(p => p.clone().applyMatrix4(scale)), normal: face.normal.clone().applyMatrix3(normalMatrix).normalize() }));
+    }
+    for (const cut of part.cuts || []) {
+      const normal = new THREE.Vector3(...cut.normal), length = normal.length();
+      faces = clipSolid(faces, normal.divideScalar(length), cut.distance / length, .52);
+    }
+    const bounds = new THREE.Box3().setFromPoints(faces.flatMap(face => face.vertices));
+    const dimensions = bounds.getSize(new THREE.Vector3()), smallest = Math.min(dimensions.x, dimensions.y, dimensions.z);
+    // Small, localized wear preserves seats, ramps, and load-bearing joints.
+    // Bevel after sizing: thin tabletops do not inherit stretched cube bevels.
+    if (options.roughness > 0) for (let i = 0; i < 3; i++) {
+      const normal = new THREE.Vector3(rng() < .5 ? -1 : 1, rng() < .5 ? -1 : 1, rng() < .5 ? -1 : 1).normalize();
+      const distance = Math.max(...faces.flatMap(face => face.vertices.map(p => p.dot(normal))));
+      faces = clipSolid(faces, normal, distance - smallest * options.roughness * (furniture ? .035 : .065), .44 + rng() * .12);
+    }
+    faces = bevelSolid(faces, smallest * options.bevel * (furniture ? .075 : .06), options.roughness * .22);
+    const transform = new THREE.Matrix4().compose(new THREE.Vector3(...part.position), new THREE.Quaternion().setFromEuler(new THREE.Euler(...(part.rotation || [0, 0, 0]))), new THREE.Vector3(1, 1, 1));
+    const normalMatrix = new THREE.Matrix3().getNormalMatrix(transform);
+    faces = faces.map(face => ({ ...face, vertices: face.vertices.map(p => p.clone().applyMatrix4(transform)), normal: face.normal.clone().applyMatrix3(normalMatrix).normalize() }));
+    if (part.grounded) {
+      const minimum = Math.min(...faces.flatMap(face => face.vertices.map(p => p.y)));
+      faces = faces.map(face => ({ ...face, vertices: face.vertices.map(p => p.clone().setY(p.y - minimum)) }));
+    }
+    faces = closedKitHull(faces);
+    const solid = solidData(faces), geometry = toGeometry(faces);
+    geometry.userData.displacementWeight = furniture ? .22 : .4;
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = part.name; mesh.castShadow = true; mesh.receiveShadow = true;
+    group.add(mesh); solids.push(solid);
+  }
+  // Structural overlap is intentional at mortises, capitals, and voussoirs.
+  // Use actual convex volume intersections, including lateral arch joints;
+  // never drop an upper part onto the floor to conceal a missing support.
+  const grounded = solids.flatMap((solid, i) => solid.bounds.min.y < .002 ? [i] : []);
+  const links = [];
+  for (let i = 0; i < solids.length; i++) for (let j = 0; j < i; j++) {
+    if (solidsOverlap(solids[i], solids[j], 1e-7)) links.push([i, j]);
+  }
+  const supported = new Set(grounded);
+  for (let pass = 0; pass < solids.length; pass++) for (const [a, b] of links) {
+    if (supported.has(a)) supported.add(b);
+    if (supported.has(b)) supported.add(a);
+  }
+  const unsupported = solids.flatMap((_, i) => supported.has(i) ? [] : [i]);
+  return finalizeAsset(group, options, { grounded, links, unsupported, settledChunks: [], jointTolerance: 0, method: 'convex-volume-intersection' });
+}
+
 function buildDesignedAsset(options, material) {
   const group = new THREE.Group(), rng = randomGenerator(options.seed), pieces = [];
   group.name = `Procedural ${options.shape} ${options.seed}`;
@@ -734,7 +853,7 @@ function finalizeAsset(group, options, connectivity) {
   group.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(group);
   const dimensions = bounds.getSize(new THREE.Vector3()), center = bounds.getCenter(new THREE.Vector3());
-  const scale = Math.min(3.6 / dimensions.x, 3.4 / dimensions.y, 3.2 / dimensions.z);
+  const scale = Math.min(KIT_SHAPES.has(options.shape) ? 1 : Infinity, 3.6 / dimensions.x, 3.4 / dimensions.y, 3.2 / dimensions.z);
   for (const mesh of group.children) {
     mesh.position.x = (mesh.position.x - center.x) * scale;
     mesh.position.y = (mesh.position.y - bounds.min.y) * scale;
@@ -767,6 +886,7 @@ export function buildAsset(input = {}, material) {
     geometryNoiseScale: clamp(Number.isFinite(input.geometryNoiseScale) ? input.geometryNoiseScale : (Number.isFinite(input.noiseScale) ? input.noiseScale : 2), 0.3, 8),
     noiseSeed: Number.isFinite(Number(input.noiseSeed)) ? Number(input.noiseSeed) : undefined,
   };
+  if (KIT_SHAPES.has(options.shape)) return buildKitAsset(options, material);
   if (SHAPE_GROUPS.slice(1).some(section => section.shapes.includes(options.shape))) return buildDesignedAsset(options, material);
   const rng = randomGenerator(options.seed);
   const group = new THREE.Group();

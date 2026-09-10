@@ -13,7 +13,9 @@
     "verify:publication": "node scripts/verify-publication.mjs",
     "qa:menus": "node scripts/qa-menus.mjs",
     "qa:tooltips": "node scripts/qa-tooltips.mjs",
-    "qa:publication": "node scripts/qa-publication.mjs"
+    "qa:publication": "node scripts/qa-publication.mjs",
+    "qa:objects": "node scripts/qa-object-library.mjs",
+    "verify:kit": "node scripts/verify-kit.mjs"
   },
   "dependencies": {
     "@dgreenheck/three-pinata": "2.0.1",

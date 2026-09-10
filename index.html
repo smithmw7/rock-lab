@@ -64,10 +64,18 @@
           <button role="tab" id="tab-studio" data-panel="studio" aria-selected="false" aria-controls="panel-studio">Studio</button>
         </nav>
         <section id="panel-shape" role="tabpanel" aria-labelledby="tab-shape">
-          <div class="section-title"><span>01</span><h2>Shape library</h2><span class="count-badge">18 forms</span></div>
-          <div class="family-tabs" role="tablist" aria-label="Shape family" id="shape-families"></div>
-          <div class="shape-grid" id="shapes"></div>
-          <p class="control-note" id="shape-description"></p>
+          <div class="section-title"><span>01</span><h2>Object library</h2><span class="count-badge" id="shape-count">Objects</span></div>
+          <div id="object-library">
+            <div class="object-filters" role="tablist" aria-label="Object category" id="shape-families"></div>
+            <div class="object-search">
+              <label for="shape-search" data-parameter-help="Filters the object library by name, description, or category. Clear the search to show every object in the selected category. Searching does not change the current asset.">Find an object</label>
+              <div class="object-search-field"><input id="shape-search" type="search" placeholder="Search objects…" autocomplete="off" spellcheck="false" aria-controls="shapes" /><button id="clear-shape-search" aria-label="Clear object search" hidden>×</button></div>
+            </div>
+            <p id="shape-results" class="object-results" role="status" aria-live="polite"></p>
+            <div class="object-list" id="shapes" role="region" aria-label="Object library" aria-describedby="shape-results"></div>
+            <div id="shape-empty" class="object-empty" hidden><p>No objects match this search.</p><button id="reset-shape-filters">Clear filters</button></div>
+            <p class="control-note library-current" id="shape-description"></p>
+          </div>
           <div class="seed-row"><label for="seed">Seed</label><input id="seed" type="number" min="1" max="999999" value="18427" /><button id="new-seed" aria-label="Generate a new seed">↻</button></div>
           <div id="geometry-controls"></div>
           <div class="section-title separated"><span>02</span><h2>Geometry relief</h2></div>
@@ -157,7 +165,7 @@
           <div class="stage-bottom"><span id="stage-hint">Drag to orbit <i>·</i> Scroll to zoom</span><span id="fps">60 FPS</span></div>
         </div>
         <div class="inspiration"><div><span class="eyebrow">WORLD PRESETS</span><p id="look-note">Start a new asset family.</p></div><div class="look-buttons" id="looks"></div></div>
-        <footer><span>Seeded geometry + procedural shading</span><span>18 shapes · 10 materials · 5 grounds</span></footer>
+        <footer><span>Seeded geometry + procedural shading</span><span id="asset-counts">Procedural asset library</span></footer>
       </main>
     </div>
     <dialog id="help-dialog" aria-labelledby="help-title">
