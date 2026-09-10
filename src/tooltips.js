@@ -7,7 +7,7 @@ export const PARAMETER_HELP = Object.freeze({
   knifeBlade: 'Chooses a chef blade, a tapered drop-point blade, or a broad cleaver. The choice changes the actual blade silhouette while keeping the handle separate.',
   handleLength: 'Scales the wooden handle length. Lower values create a compact tool; higher values make a longer grip while keeping the head attached.',
   headScale: 'Scales the metal head or blade relative to the handle. Lower values make a lighter, smaller tool; higher values emphasize the working end.',
-  wallThickness: 'Sets the physical thickness of hollow vessels and the depth of candlestick sockets. Larger values make thicker walls and smaller interior openings; the rim and base stay closed solids.',
+  wallThickness: 'Sets the physical wall thickness of hollow vessels and candlestick sockets. Larger values make thicker walls and smaller interior openings; the rim and base stay closed solids.',
   latheHeight: 'Scales the height of the turned object. Lower values flatten bowls and vessels; higher values stretch the profile vertically.',
   latheWidth: 'Scales the overall radius of the lathe profile. Lower values make a slimmer object; higher values make a wider turning.',
   latheBelly: 'Widens or narrows the middle of the spline profile. Lower values pinch the body inward; higher values create a fuller bowl or rounded vessel.',
