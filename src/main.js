@@ -67,7 +67,7 @@ let materialFamily='rock';
 const materialFamilyFor=surface=>surfaces[surface]?.family||(Object.hasOwn(OPTICAL_PRESETS,surface)?'optical':'rock');
 let rotation=false,lastGeneration=0,generationCount=0,pendingGenerate=0,frameSize=5.4,toastTimer;
 let assets=[];
-let pathFrameBounds=null;
+let pathFrameBounds=null,sceneFrameBounds=null;
 let workspaceMode='object',sceneEditor=null,scenePanel=null,objectDraft=null,sceneCamera=null,sceneEnvironment=null,sceneInitialized=false,loadingSceneSelection=false;
 const inScene=()=>workspaceMode==='scene';
 const stage=document.querySelector('#stage');
@@ -434,7 +434,7 @@ function fitPathCamera(){
 function resize(){
   const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;
   renderer.setSize(w,h);ground.resize(w,h);const aspect=w/h;
-  const height=inScene()?Math.max(2.8,frameSize,frameSize/Math.max(aspect,.2)):isPath()&&pathFrameBounds?Math.max(2.8,pathFrameBounds.height,pathFrameBounds.width/aspect):viewMode==='lineup'?Math.max(5.2,14.5/aspect):(aspect<1?frameSize/aspect:frameSize);
+  const height=inScene()?Math.max(4,sceneFrameBounds?.height??frameSize,(sceneFrameBounds?.width??frameSize)/aspect):isPath()&&pathFrameBounds?Math.max(2.8,pathFrameBounds.height,pathFrameBounds.width/aspect):viewMode==='lineup'?Math.max(5.2,14.5/aspect):(aspect<1?frameSize/aspect:frameSize);
   camera.left=-height*aspect/2;camera.right=height*aspect/2;camera.top=height/2;camera.bottom=-height/2;camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(stage);
@@ -604,7 +604,7 @@ function sanitizeEnvironment(input){
   return Object.fromEntries(environmentKeys.map(key=>[key,options[key]]));
 }
 function captureCamera(){return {
-  position:camera.position.toArray(),target:controls.target.toArray(),zoom:camera.zoom,far:camera.far,frameSize,pathFrameBounds:structuredClone(pathFrameBounds),
+  position:camera.position.toArray(),target:controls.target.toArray(),zoom:camera.zoom,far:camera.far,frameSize,pathFrameBounds:structuredClone(pathFrameBounds),sceneFrameBounds:structuredClone(sceneFrameBounds),
   fog:[scene.fog.near,scene.fog.far],keyPosition:key.position.toArray(),keyTarget:key.target.position.toArray(),
   shadow:Object.fromEntries(['left','right','top','bottom','far'].map(k=>[k,key.shadow.camera[k]])),
 };}
@@ -612,7 +612,7 @@ function restoreCamera(saved){
   if(!saved)return;
   controls.autoRotate=false;const damping=controls.enableDamping;controls.enableDamping=false;controls.update(0);
   camera.position.fromArray(saved.position);controls.target.fromArray(saved.target);camera.zoom=saved.zoom;camera.far=saved.far;
-  frameSize=saved.frameSize;pathFrameBounds=structuredClone(saved.pathFrameBounds);[scene.fog.near,scene.fog.far]=saved.fog;
+  frameSize=saved.frameSize;pathFrameBounds=structuredClone(saved.pathFrameBounds);sceneFrameBounds=structuredClone(saved.sceneFrameBounds);[scene.fog.near,scene.fog.far]=saved.fog;
   key.position.fromArray(saved.keyPosition);key.target.position.fromArray(saved.keyTarget);key.target.updateMatrixWorld();
   Object.assign(key.shadow.camera,saved.shadow);key.shadow.camera.updateProjectionMatrix();controls.update(0);controls.enableDamping=damping;resize();
 }
@@ -627,7 +627,8 @@ function frameScene(selection=false){
   const projected=new THREE.Box3();
   for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z])projected.expandByPoint(new THREE.Vector3(x,y,z).applyMatrix4(camera.matrixWorldInverse));
   const extent=projected.getSize(new THREE.Vector3()),aspect=Math.max(.2,stage.clientWidth/stage.clientHeight);
-  frameSize=Math.max(4,extent.y*1.45,extent.x*1.45/aspect);
+  sceneFrameBounds={width:extent.x*1.45,height:extent.y*1.45};
+  frameSize=Math.max(4,sceneFrameBounds.height,sceneFrameBounds.width/aspect);
   scene.fog.near=distance+size.length()*1.5;scene.fog.far=scene.fog.near+60;
   const shadowSize=Math.max(12,size.length());key.position.copy(center).add(new THREE.Vector3(-shadowSize,shadowSize*1.5,shadowSize));key.target.position.copy(center);key.target.updateMatrixWorld();
   Object.assign(key.shadow.camera,{left:-shadowSize,right:shadowSize,top:shadowSize,bottom:-shadowSize,far:shadowSize*5});key.shadow.camera.updateProjectionMatrix();resize();

@@ -77,6 +77,19 @@ async function dragGizmo(){
   return {start:point,before:before.scene.selection.position,after:after.scene.selection.position,cameraFixed:true,snapped:true};
 }
 
+async function projectedFit(label){
+  const fit=await page.evaluate(()=>{
+    const lab=window.rockLab,root=lab.sceneEditor.getRoot(),min=[Infinity,Infinity],max=[-Infinity,-Infinity];let vertices=0;
+    root.updateWorldMatrix(true,true);lab.camera.updateMatrixWorld();
+    for(const node of root.children){const content=node.children.find(child=>child.userData.sceneContent);content.traverse(mesh=>{if(!mesh.isMesh)return;const position=mesh.geometry.attributes.position,point=mesh.position.clone();for(let index=0;index<position.count;index++){point.fromBufferAttribute(position,index).applyMatrix4(mesh.matrixWorld).project(lab.camera);min[0]=Math.min(min[0],point.x);min[1]=Math.min(min[1],point.y);max[0]=Math.max(max[0],point.x);max[1]=Math.max(max[1],point.y);vertices++;}});}
+    return{min,max,vertices,widthFraction:(max[0]-min[0])/2,heightFraction:(max[1]-min[1])/2,viewport:{width:innerWidth,height:innerHeight},canvas:lab.renderer.domElement.getBoundingClientRect().toJSON()};
+  });
+  assert.ok(fit.vertices>0&&[...fit.min,...fit.max].every(Number.isFinite),`${label} has finite actual mesh projections`);
+  assert.ok(fit.min.every(value=>value>-.98)&&fit.max.every(value=>value<.98),`${label} fits every source vertex`);
+  assert.ok(Math.max(fit.widthFraction,fit.heightFraction)>.60,`${label} uses a meaningful viewport fraction: ${fit.widthFraction.toFixed(3)} × ${fit.heightFraction.toFixed(3)}`);
+  return fit;
+}
+
 function inspectColliders(){
   const editor=window.rockLab.sceneEditor,root=editor.getRoot(),sources=new Map(),colliders=[];root.updateWorldMatrix(true,true);
   root.traverse(mesh=>{if(mesh.isMesh){if(mesh.userData.sceneCollider)colliders.push(mesh);else sources.set(mesh.uuid,mesh);}});
@@ -136,6 +149,15 @@ try{
   // Curved, hollow tubing proves collider mode is a real per-mesh convex hull,
   // distinct from the yellow selection bounds and from the original concavity.
   await shape('metalTube');const tube=(await snapshot()).scene.selectedId;await page.locator('#scene-frame-all').click();await advance(500);
+  // Framing stores camera-space width/height separately. A tall canvas must
+  // apply its aspect ratio once, including restored Scene cameras after resize.
+  await page.setViewportSize({width:940,height:1200});await page.locator('#scene-frame-all').click();await advance(600);
+  const tall=await projectedFit('Tall desktop frame all');await capture('scene-tall-desktop');
+  await page.locator('#mode-object').click();await page.setViewportSize({width:1440,height:1000});await page.locator('#mode-scene').click();await advance(600);const wideRestored=await projectedFit('Scene restored into wide desktop');
+  await page.locator('#mode-object').click();await page.setViewportSize({width:940,height:1200});await page.locator('#mode-scene').click();await advance(600);const tallRestored=await projectedFit('Scene restored into tall desktop');
+  almost(tallRestored.widthFraction,tall.widthFraction,'Restored tall width fit');almost(tallRestored.heightFraction,tall.heightFraction,'Restored tall height fit');
+  report.checks.tallViewportFraming={tall,wideRestored,tallRestored};
+  await page.setViewportSize({width:1440,height:1000});await page.locator('#scene-frame-all').click();await advance(500);
   const shadedMaterials=(await snapshot()).instances,renderHashes={};
   for(const mode of['shaded','wireframe','collider','normals']){
     await page.locator('#scene-render-mode').selectOption(mode);renderHashes[mode]=await capture(`render-${mode}`);current=await snapshot();assert.equal(current.scene.settings.renderMode,mode);
