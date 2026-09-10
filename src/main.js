@@ -244,7 +244,7 @@ document.querySelector('#ground-count').textContent=`${Object.keys(grounds).leng
 function renderShapes(options={}){objectLibrary.select(state.shape,options);}
 for(const [id,entry] of Object.entries(surfaces)){
   const button=document.createElement('button');button.dataset.surface=id;button.className='material-card';
-  button.innerHTML=`<i class="material-swatch ${id}"></i><span><strong>${entry.label}</strong><small>${entry.description}</small></span>`;
+  button.innerHTML=`<i class="material-swatch ${id}" aria-hidden="true"></i><strong>${entry.label}</strong>`;
   button.addEventListener('click',()=>{applySurface(currentMaterialState(),id);materialFamily=materialFamilyFor(id);selectedLook='';updateMaterials();syncInputs();});
   document.querySelector('#materials').append(button);
 }
