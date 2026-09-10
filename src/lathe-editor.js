@@ -2,7 +2,7 @@ import { sampleLatheProfile } from './workshop-geometry.js';
 
 // The SVG is a direct view of the same sampled profile used by the mesh.
 // Fixed height stations keep dragging predictable and prevent crossing splines.
-export function createLatheEditor({state,onChange}){
+export function createLatheEditor({state,onChange,getShape=()=>state.shape}){
   const svg=document.querySelector('#lathe-profile'),point=document.querySelector('#lathe-point'),radius=document.querySelector('#lathe-radius'),output=document.querySelector('#lathe-radius-value');
   const abort=new AbortController(),listen={signal:abort.signal};
   const ns='http://www.w3.org/2000/svg';
@@ -25,7 +25,7 @@ export function createLatheEditor({state,onChange}){
   }
   function sync(){
     if(document.querySelector('#lathe-controls-panel').hidden)return;
-    const profile=sampleLatheProfile(state.shape,state,64),controls=profile.controls;
+    const profile=sampleLatheProfile(getShape(),state,64),controls=profile.controls;
     if(!profile.points?.length||controls?.length!==6)return;
     const maxRadius=Math.max(...profile.points.map(p=>p.radius),...controls.map(p=>p.baseRadius*1.4||p.radius*1.4));
     layout=drag?.layout??{scale:Math.min(102/Math.max(.01,maxRadius),170/Math.max(.01,profile.height)),baseY:195,centerX:130};
@@ -51,7 +51,7 @@ export function createLatheEditor({state,onChange}){
   svg.addEventListener('pointerdown',event=>{
     const circle=event.target.closest('[data-profile-point]');if(!circle)return;
     event.preventDefault();select(Number(circle.dataset.profilePoint));circle.focus();
-    const profile=sampleLatheProfile(state.shape,state,64),control=profile.controls[selected];
+    const profile=sampleLatheProfile(getShape(),state,64),control=profile.controls[selected];
     drag={id:event.pointerId,layout:{...layout},baseRadius:control.baseRadius??control.radius/current()[selected]};
     svg.setPointerCapture(event.pointerId);pointerRadius(event);
   },listen);

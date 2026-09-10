@@ -15,14 +15,19 @@ import { createObjectLibrary } from './library.js';
 import { WORKSHOP_DEFAULTS, WORKSHOP_RANGES, WORKSHOP_SHAPES, sanitizeWorkshopOptions } from './workshop-geometry.js';
 import { WORKSHOP_MATERIAL_DEFAULTS, WORKSHOP_MATERIAL_RANGES } from './workshop-materials.js';
 import { createLatheEditor } from './lathe-editor.js';
+import { PATH_DEFAULTS, PATH_RANGES, PATH_SHAPES, sanitizePathOptions } from './path-geometry.js';
+import { createPathEditor } from './path-editor.js';
 import './style.css';
 import './menu.css';
 import './library.css';
 import './workshop.css';
 import './workshop-materials.css';
+import './path.css';
 
 const tintDefaults={tint:'#ffffff',tintAmount:0};
-const state={...defaults,...ASPHALT_DEFAULTS,...OPTICAL_DEFAULTS,...WORKSHOP_DEFAULTS,...WORKSHOP_MATERIAL_DEFAULTS,...tintDefaults};
+const state={...defaults,...ASPHALT_DEFAULTS,...OPTICAL_DEFAULTS,...WORKSHOP_DEFAULTS,...WORKSHOP_MATERIAL_DEFAULTS,...structuredClone(PATH_DEFAULTS),...tintDefaults};
+const isPath=()=>PATH_SHAPES.has(state.shape);
+const effectiveShape=()=>state.shape==='objectPath'?state.pathObject:state.shape;
 let soundFamily='auto';
 const soundForSurface=surface=>surfaces[surface]?.family==='wood'?'wood':surfaces[surface]?.family==='ceramic'?'concrete':['ice','obsidian','glass','quartz','frozenGlass'].includes(surface)?'glass':['block','brick','wall'].includes(state.shape)?'concrete':'rock';
 const getSoundFamily=(slot='primary')=>soundFamily!=='auto'?soundFamily:soundForSurface(slot==='primary'?state.surface:partStates[slot]?.outer.surface??state.surface);
@@ -60,6 +65,7 @@ let materialFamily='rock';
 const materialFamilyFor=surface=>surfaces[surface]?.family||(Object.hasOwn(OPTICAL_PRESETS,surface)?'optical':'rock');
 let rotation=false,lastGeneration=0,generationCount=0,pendingGenerate=0,frameSize=5.4,toastTimer;
 let assets=[];
+let pathFrameBounds=null;
 const stage=document.querySelector('#stage');
 const scene=new THREE.Scene();
 scene.background=new THREE.Color('#151d25');
@@ -114,6 +120,7 @@ function applySurface(target,id){
 }
 const variationSeed=(index)=>((state.seed-1+index*137)%999999)+1;
 const specs=[
+  ...Object.entries({pathWidth:'Path width',pathSpacing:'Piece gap',pathPieceSize:'Piece size',pathThickness:'Piece thickness',pathSmoothness:'Curve smoothness',pathOffset:'Lateral offset',pathJitter:'Shape variation',pathRotation:'Random rotation',pathObjectScale:'Object scale'}).map(([key,label])=>({key,label,parent:key==='pathObjectScale'?'path-object-controls':['pathJitter','pathRotation'].includes(key)?'path-variation-controls':'path-layout-controls',kind:'geometry',min:PATH_RANGES[key][0],max:PATH_RANGES[key][1],step:.01,format:['pathJitter','pathRotation','pathSmoothness'].includes(key)?undefined:key==='pathObjectScale'?'preciseScale':'units'})),
   {key:'facets',label:'Plane cuts',parent:'geometry-controls',kind:'geometry'},
   {key:'roughness',label:'Irregularity',parent:'geometry-controls',kind:'geometry'},
   {key:'bevel',label:'Chipped edges',parent:'geometry-controls',kind:'geometry'},
@@ -164,21 +171,37 @@ for(const spec of specs){
 }
 const objectLibrary=createObjectLibrary({
   root:document.querySelector('#object-library'),shapes,groups:shapeGroups,selected:state.shape,
-  onSelect:id=>{
-    const changed=state.shape!==id;state.shape=id;selectedLook='';materialSlot='primary';
-    if(changed&&WORKSHOP_SHAPES.has(id)){
-      state.latheProfile=null;
-      if(shapes[id].defaultSurface){applySurface(state,shapes[id].defaultSurface);applySurface(innerState,shapes[id].defaultSurface);}
-      if(shapes[id].kind==='composite'){
-        for(const side of ['outer','inner']){applySurface(partStates.handle[side],shapes[id].defaultHandleSurface||'oak');applySurface(partStates.trim[side],'brass');}
-      }
-      materialFamily=materialFamilyFor(state.surface);updateMaterials();
-    }
-    materialFamily=materialFamilyFor(currentMaterialState().surface);
-    generate(true);
-  },
+  onSelect:id=>selectObject(id),
 });
-const latheEditor=createLatheEditor({state,onChange:()=>{selectedLook='';queueGenerate();}});
+const latheEditor=createLatheEditor({state,getShape:effectiveShape,onChange:()=>{selectedLook='';queueGenerate();}});
+function selectObject(id){
+  const changed=state.shape!==id;state.shape=id;selectedLook='';materialSlot='primary';
+  if(changed&&(WORKSHOP_SHAPES.has(id)||shapes[id].kind==='terrain'||isPath())){
+    state.latheProfile=null;applyObjectSurface(id==='objectPath'?state.pathObject:id);
+  }
+  if(isPath()){
+    viewMode='single';syncViewButtons();setInspector('path');
+  }
+  materialFamily=materialFamilyFor(currentMaterialState().surface);generate(true);
+}
+function applyObjectSurface(id){
+  const entry=shapes[id];
+  if(entry.defaultSurface){applySurface(state,entry.defaultSurface);applySurface(innerState,entry.defaultSurface);}
+  else if(isPath()){applySurface(state,'stone');applySurface(innerState,'limestone');}
+  if(entry.kind==='composite')for(const side of ['outer','inner']){
+    applySurface(partStates.handle[side],entry.defaultHandleSurface||'oak');applySurface(partStates.trim[side],'brass');
+  }
+  updateMaterials();
+}
+const pathEditor=createPathEditor({state,onChange:()=>{selectedLook='';queueGenerate();}});
+for(const group of shapeGroups){
+  const optgroup=document.createElement('optgroup');optgroup.label=group.label;
+  for(const id of group.shapes.filter(id=>!PATH_SHAPES.has(id))){const option=document.createElement('option');option.value=id;option.textContent=shapes[id].label;optgroup.append(option);}
+  if(optgroup.children.length)document.querySelector('#pathObject').append(optgroup);
+}
+document.querySelectorAll('[data-path-style]').forEach(button=>button.addEventListener('click',()=>selectObject(button.dataset.pathStyle)));
+document.querySelector('#pathObject').addEventListener('change',event=>{state.pathObject=event.target.value;state.latheProfile=null;applyObjectSurface(state.pathObject);if(!shapes[state.pathObject].defaultSurface){applySurface(state,'stone');applySurface(innerState,'limestone');updateMaterials();}selectedLook='';materialFamily=materialFamilyFor(state.surface);generate(true);});
+for(const key of ['pathAlign','pathClosed'])document.getElementById(key).addEventListener('change',event=>{state[key]=event.target.checked;selectedLook='';queueGenerate();});
 for(const key of ['hammerHead','knifeBlade'])document.getElementById(key).addEventListener('change',event=>{state[key]=event.target.value;selectedLook='';queueGenerate();});
 document.querySelector('#edit-parts').addEventListener('click',()=>{materialSlot='primary';selectMaterialTarget('outer');});
 document.querySelector('#material-slot').addEventListener('change',event=>{materialSlot=event.target.value;materialFamily=materialFamilyFor(currentMaterialState().surface);syncInputs();});
@@ -209,10 +232,12 @@ for(const [id,look] of Object.entries(looks)){
   button.addEventListener('click',()=>applyLook(id));document.querySelector('#looks').append(button);
 }
 function applyLook(id){
-  materialSlot='primary';Object.assign(state,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,WORKSHOP_DEFAULTS,WORKSHOP_MATERIAL_DEFAULTS,tintDefaults,looks[id].options);selectedLook=id;materialFamily=materialFamilyFor(currentMaterialState().surface);
+  if(inspector==='path')setInspector('shape');
+  materialSlot='primary';Object.assign(state,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,WORKSHOP_DEFAULTS,WORKSHOP_MATERIAL_DEFAULTS,structuredClone(PATH_DEFAULTS),tintDefaults,looks[id].options);selectedLook=id;materialFamily=materialFamilyFor(currentMaterialState().surface);
   renderShapes({reveal:true});updateMaterials();ground.update(state);applyLighting();generate(true);
 }
 function setInspector(id){
+  if(id==='path'&&!isPath()){state.pathObject=state.shape;selectObject('steppingStonePath');return;}
   inspector=id;
   document.querySelectorAll('[data-panel]').forEach(el=>{const active=el.dataset.panel===id;el.setAttribute('aria-selected',active);el.tabIndex=active?0:-1;});
   document.querySelectorAll('aside > section[role="tabpanel"]').forEach(el=>el.hidden=el.id!==`panel-${id}`);
@@ -229,16 +254,32 @@ for(const tablist of document.querySelectorAll('[role="tablist"]'))tablist.addEv
 });
 function message(text){const el=document.querySelector('#toast');el.textContent=text;el.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('visible'),2800);}
 function syncInputs(){
-  const composite=shapes[state.shape].kind==='composite',lathe=shapes[state.shape].kind==='lathe',hasParts=composite||state.shape==='woodenCandlestick';
+  const source=effectiveShape(),composite=shapes[source].kind==='composite',lathe=shapes[source].kind==='lathe',hasParts=composite||source==='woodenCandlestick';
+  syncViewButtons();
+  document.querySelector('#path-source-row').hidden=state.shape!=='objectPath';document.querySelector('#path-object-controls').hidden=state.shape!=='objectPath';
+  document.querySelector('#pathObject').value=state.pathObject;
+  const fitted=['brickPath','cobblePath'].includes(state.shape);
+  document.querySelector('#pathRotation').closest('.slider-control').hidden=fitted;
+  for(const key of ['pathPieceSize','pathThickness'])document.getElementById(key).closest('.slider-control').hidden=state.shape==='objectPath';
+  document.querySelector('#pathAlign').closest('label').hidden=state.shape!=='objectPath';
+  for(const key of ['facets','roughness'])document.getElementById(key).closest('.slider-control').hidden=isPath()&&state.shape!=='objectPath';
+  for(const key of ['pathAlign','pathClosed'])document.getElementById(key).checked=state[key];
+  document.querySelector('#pathClosed').disabled=state.pathPoints.length<3;
+  document.querySelectorAll('[data-path-style]').forEach(el=>{el.classList.toggle('active',el.dataset.pathStyle===state.shape);el.setAttribute('aria-pressed',String(el.dataset.pathStyle===state.shape));});
+  if(isPath()){
+    pathEditor.sync();const p=assets[0]?.userData.path,status=document.querySelector('#path-status');
+    const warnings=[...(p?.warnings??[]),...(p&&p.pieces===0?['No pieces fit this route. Move the points farther apart or reduce Piece size and Piece gap.']:[])];status.classList.toggle('warning',Boolean(warnings.length||p?.truncated));
+    status.textContent=p?`${p.length.toFixed(2)} units · ${p.pieces} pieces${p.truncated?' · Layout budget reached':''}${warnings.length?' · '+warnings.join(' '):''}`:'Editing route…';
+  }
   if(!hasParts||(!composite&&materialSlot==='handle'))materialSlot='primary';
   for(const spec of specs){const value=(spec.kind==='material'?currentMaterialState():state)[spec.key];document.getElementById(spec.key).value=value;document.getElementById(`${spec.key}-value`).textContent=spec.format==='integer'?`${Math.round(value)}`:spec.format==='number'?`${Number(value.toFixed(3))}`:spec.format==='units'?`${Number(value.toFixed(2))} u`:spec.format==='scale'?`${value.toFixed(1)}×`:spec.format==='preciseScale'?`${Number(value.toFixed(2))}×`:`${Math.round(value*100)}%`;}
   document.querySelector('#composite-controls-panel').hidden=!composite;
-  document.querySelector('#hammer-head-row').hidden=state.shape!=='hammer';
-  document.querySelector('#knife-blade-row').hidden=state.shape!=='knife';
+  document.querySelector('#hammer-head-row').hidden=source!=='hammer';
+  document.querySelector('#knife-blade-row').hidden=source!=='knife';
   document.querySelector('#hammerHead').value=state.hammerHead;document.querySelector('#knifeBlade').value=state.knifeBlade;
   document.querySelector('#lathe-controls-panel').hidden=!lathe;
   document.querySelector('#material-slot-row').hidden=!hasParts;document.querySelector('#material-slot').value=materialSlot;
-  document.querySelector('#material-slot option[value="primary"]').textContent=composite?(state.shape==='hammer'?'Hammer head':'Blade'):'Body';
+  document.querySelector('#material-slot option[value="primary"]').textContent=composite?(source==='hammer'?'Hammer head':'Blade'):'Body';
   document.querySelector('#material-slot option[value="handle"]').hidden=!composite;document.querySelector('#material-slot option[value="handle"]').disabled=!composite;
   if(lathe)latheEditor.sync();
   document.querySelector('#material-tint').value=currentMaterialState().tint;
@@ -252,7 +293,7 @@ function syncInputs(){
   document.querySelectorAll('[data-surface]').forEach(el=>{el.hidden=materialFamilyFor(el.dataset.surface)!==materialFamily;});
   document.querySelectorAll('[data-material-target]').forEach(el=>{const active=el.dataset.materialTarget===materialTarget;el.setAttribute('aria-selected',active);el.tabIndex=active?0:-1;});
   document.querySelector('#material-editor').setAttribute('aria-labelledby',`material-${materialTarget}`);
-  const partName=hasParts?`${{primary:composite?(state.shape==='hammer'?'Head':'Blade'):'Body',handle:'Handle',trim:'Fittings'}[materialSlot]} · `:'';
+  const partName=hasParts?`${{primary:composite?(source==='hammer'?'Head':'Blade'):'Body',handle:'Handle',trim:'Fittings'}[materialSlot]} · `:'';
   document.querySelector('#material-target-note').textContent=partName+(materialTarget==='inner'?'New cut faces exposed by fracture. Break the asset to see this material.':'The original outside surface of the asset.');
   document.querySelector('#seed').value=state.seed;document.querySelector('#lighting').value=state.lighting;
   for(const [attr,value] of [['shape',state.shape],['surface',currentMaterialState().surface],['ground',state.ground],['channel',currentMaterialState().mapView],['look',selectedLook]]){
@@ -297,10 +338,17 @@ async function ensureFracture(){
   }).catch(error=>{fractureLoading=null;throw error;});
   return fractureLoading;
 }
+function ensurePathFractureBudget(){
+  if(!isPath()||fractureOptions.maxFragments>=160)return;
+  fractureOptions=sanitizeFractureOptions({...fractureOptions,maxFragments:160});
+  fracturePanel?.setOptions(fractureOptions);fractureController?.update(fractureOptions);
+  message('Path destruction: live piece limit raised to 160.');
+}
 async function setFractureEnabled(enabled){
   fractureRequested=Boolean(enabled);
   if(!enabled){audio.stop();fractureController?.setEnabled(false);syncDestruction();return;}
   if(viewMode!=='single')setViewMode('single');
+  ensurePathFractureBudget();
   rotation=false;document.querySelector('#rotate').checked=false;
   syncDestruction();
   try{
@@ -341,14 +389,35 @@ function applyLighting(){
   scene.background.set(p.bg);scene.fog.color.set(p.bg);ground.update({studioColor:p.bg});
 }
 function frameAsset(){
+  if(isPath()){assembly.rotation.y=0;camera.position.set(7,8,9);controls.target.set(0,0,0);fitPathCamera();return;}
   assembly.rotation.y=0;frameSize=viewMode==='lineup'?7.6:5.4;
   camera.position.set(...(viewMode==='lineup'?[2.5,4.5,14]:[7,5.1,8]));camera.zoom=1;
   controls.target.set(0,viewMode==='lineup'?.85:1.35,0);controls.update();resize();
 }
+function fitPathCamera(){
+  if(!assets.length)return;
+  assembly.updateMatrixWorld(true);const bounds=new THREE.Box3().setFromObject(assembly);
+  if(bounds.isEmpty()){
+    for(const p of state.pathPoints)bounds.expandByPoint(new THREE.Vector3(p.x,0,p.z));
+    bounds.expandByVector(new THREE.Vector3(state.pathWidth/2,.05,state.pathWidth/2));
+  }
+  const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
+  const direction=camera.position.clone().sub(controls.target).normalize(),distance=Math.max(12,size.length()*1.8);
+  controls.target.copy(center);camera.position.copy(center).addScaledVector(direction,distance);camera.zoom=1;controls.update();camera.updateMatrixWorld();
+  const projected=new THREE.Box3();
+  for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z])projected.expandByPoint(new THREE.Vector3(x,y,z).applyMatrix4(camera.matrixWorldInverse));
+  const extent=projected.getSize(new THREE.Vector3()),aspect=Math.max(.2,stage.clientWidth/stage.clientHeight);
+  pathFrameBounds={width:extent.x*1.3,height:extent.y*1.3};
+  frameSize=Math.max(2.8,pathFrameBounds.height,pathFrameBounds.width/aspect);
+  scene.fog.near=distance+size.length()*1.5;scene.fog.far=scene.fog.near+35;
+  const shadowSize=Math.max(12,size.length());key.position.copy(center).add(new THREE.Vector3(-shadowSize,shadowSize*1.5,shadowSize));key.target.position.copy(center);key.target.updateMatrixWorld();
+  Object.assign(key.shadow.camera,{left:-shadowSize,right:shadowSize,top:shadowSize,bottom:-shadowSize,far:shadowSize*5});key.shadow.camera.updateProjectionMatrix();
+  resize();
+}
 function resize(){
   const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;
   renderer.setSize(w,h);ground.resize(w,h);const aspect=w/h;
-  const height=viewMode==='lineup'?Math.max(5.2,14.5/aspect):(aspect<1?frameSize/aspect:frameSize);
+  const height=isPath()&&pathFrameBounds?Math.max(2.8,pathFrameBounds.height,pathFrameBounds.width/aspect):viewMode==='lineup'?Math.max(5.2,14.5/aspect):(aspect<1?frameSize/aspect:frameSize);
   camera.left=-height*aspect/2;camera.right=height*aspect/2;camera.top=height/2;camera.bottom=-height/2;camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(stage);
@@ -356,6 +425,7 @@ function generate(resetCamera=false){
   audio.stop();
   const start=performance.now();
   for(const asset of assets){assembly.remove(asset);disposeAsset(asset);}assets=[];
+  if(isPath())viewMode='single';
   const count=viewMode==='lineup'?5:1;
   for(let i=0;i<count;i++){
     const asset=buildAsset({...state,seed:variationSeed(i)},material);
@@ -363,12 +433,15 @@ function generate(resetCamera=false){
     if(count>1){asset.scale.setScalar(.65);asset.position.set((i-2)*2.65,0,0);}assembly.add(asset);assets.push(asset);
   }
   assembly.updateMatrixWorld(true);
+  if(fractureRequested)ensurePathFractureBudget();
   fractureController?.setSource(assembly);
   if(fractureRequested&&fractureController&&!fractureController.getStats().enabled)fractureRequested=false;
   lastGeneration=performance.now()-start;generationCount++;
   let triangles=0;assembly.traverse(obj=>{if(obj.isMesh)triangles+=(obj.geometry.index?.count??obj.geometry.attributes.position.count)/3;});
   document.querySelector('#triangles').textContent=triangles.toLocaleString();document.querySelector('#generation-time').textContent=lastGeneration.toFixed(1);
-  syncInputs();if(resetCamera)frameAsset();
+  syncInputs();
+  if(isPath()){if(resetCamera)frameAsset();else fitPathCamera();}
+  else{scene.fog.near=19;scene.fog.far=38;key.position.set(-4,7,5);key.target.position.set(0,0,0);key.target.updateMatrixWorld();Object.assign(key.shadow.camera,{left:-12,right:12,top:12,bottom:-12,far:35});key.shadow.camera.updateProjectionMatrix();if(resetCamera)frameAsset();}
 }
 function queueGenerate(){cancelAnimationFrame(pendingGenerate);pendingGenerate=requestAnimationFrame(()=>generate());}
 document.querySelector('#seed').addEventListener('change',event=>{state.seed=Math.max(1,Math.min(999999,Math.round(Number(event.target.value)||defaults.seed)));selectedLook='';generate();});
@@ -378,7 +451,12 @@ document.querySelector('#wireframe').addEventListener('change',event=>{for(const
 document.querySelector('#rotate').addEventListener('change',event=>{rotation=event.target.checked;if(rotation&&fractureRequested){setFractureEnabled(false);}});
 document.querySelector('#frame').addEventListener('click',frameAsset);
 document.querySelector('#help-dialog').addEventListener('click',event=>{if(event.target===event.currentTarget)event.currentTarget.close();});
+function syncViewButtons(){
+  for(const m of ['single','lineup']){const el=document.querySelector(`#view-${m}`);el.classList.toggle('active',m===viewMode);el.setAttribute('aria-pressed',m===viewMode);if(m==='lineup')el.disabled=isPath();}
+  document.querySelector('[data-menu-action="lineup"]').disabled=isPath();
+}
 function setViewMode(mode){
+  if(mode==='lineup'&&isPath()){message('Paths use the single-layout view. Change Seed to make a variation.');return;}
   if(mode==='lineup'&&fractureRequested)setFractureEnabled(false);
   viewMode=mode;
   for(const m of ['single','lineup']){const el=document.querySelector(`#view-${m}`);el.classList.toggle('active',m===mode);el.setAttribute('aria-pressed',m===mode);}
@@ -403,8 +481,9 @@ renderer.domElement.addEventListener('pointerup',event=>{
 });
 document.querySelector('#reset-asphalt').addEventListener('click',()=>{Object.assign(state,ASPHALT_DEFAULTS);selectedLook='';ground.update(state);syncInputs();message('Asphalt detail restored');});
 document.querySelector('#reset').addEventListener('click',()=>{
+  if(inspector==='path')setInspector('shape');
   setFractureEnabled(false);fractureOptions=sanitizeFractureOptions(FRACTURE_DEFAULTS);fractureController?.update(fractureOptions);fracturePanel.setOptions(fractureOptions);
-  Object.assign(state,defaults,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,WORKSHOP_DEFAULTS,WORKSHOP_MATERIAL_DEFAULTS,tintDefaults);Object.assign(innerState,innerDefaults);
+  Object.assign(state,defaults,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,WORKSHOP_DEFAULTS,WORKSHOP_MATERIAL_DEFAULTS,structuredClone(PATH_DEFAULTS),tintDefaults);Object.assign(innerState,innerDefaults);
   for(const slot of ['handle','trim'])for(const side of ['outer','inner'])Object.assign(partStates[slot][side],makePartState(slot==='handle'?'oak':'brass'));
   materialSlot='primary';materialTarget='outer';materialFamily='rock';selectedLook='alpine';rotation=false;for(const mat of allMaterials())mat.wireframe=false;
   document.querySelector('#rotate').checked=false;document.querySelector('#wireframe').checked=false;
@@ -413,19 +492,20 @@ document.querySelector('#reset').addEventListener('click',()=>{
 function download(data,name,type){
   const url=URL.createObjectURL(data instanceof Blob?data:new Blob([data],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
-function recipe(){return{generator:'procedural-rock-lab',version:4,options:structuredClone(state),innerMaterial:{...innerState},partMaterials:structuredClone(partStates),fracture:{...structuredClone(fractureOptions),enabled:fractureRequested}};}
+function recipe(){return{generator:'procedural-rock-lab',version:5,options:structuredClone(state),innerMaterial:{...innerState},partMaterials:structuredClone(partStates),fracture:{...structuredClone(fractureOptions),enabled:fractureRequested}};}
 document.querySelector('#save-recipe').addEventListener('click',()=>{download(JSON.stringify(recipe(),null,2),`rock-${state.shape}-${state.seed}.json`,'application/json');message('Recipe download started. Load the JSON to restore it.');});
 document.querySelector('#export-png').addEventListener('click',()=>{
   renderer.render(scene,camera);renderer.domElement.toBlob(blob=>{if(blob){download(blob,`rock-${state.shape}-${state.seed}.png`,'image/png');message('Image download started');}else message('Image export failed. Please try again.');},'image/png');
 });
 async function loadRecipe(data){
-  if(data.generator!=='procedural-rock-lab'||![1,2,3,4].includes(data.version)||!data.options||!shapes[data.options.shape])throw new Error('Unsupported rock recipe');
+  if(data.generator!=='procedural-rock-lab'||![1,2,3,4,5].includes(data.version)||!data.options||!shapes[data.options.shape])throw new Error('Unsupported rock recipe');
   await setFractureEnabled(false);
-  const options=data.options;Object.assign(state,defaults,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,WORKSHOP_DEFAULTS,WORKSHOP_MATERIAL_DEFAULTS,OPTICAL_PRESETS[data.options.surface],tintDefaults);Object.assign(innerState,innerDefaults,OPTICAL_PRESETS[data.innerMaterial?.surface]);
+  const options=data.options;Object.assign(state,defaults,ASPHALT_DEFAULTS,OPTICAL_DEFAULTS,WORKSHOP_DEFAULTS,WORKSHOP_MATERIAL_DEFAULTS,structuredClone(PATH_DEFAULTS),OPTICAL_PRESETS[data.options.surface],tintDefaults);Object.assign(innerState,innerDefaults,OPTICAL_PRESETS[data.innerMaterial?.surface]);
   for(const spec of specs)if(Number.isFinite(options[spec.key]))state[spec.key]=THREE.MathUtils.clamp(options[spec.key],spec.min??0,spec.max??1);
   state.seed=Number.isFinite(options.seed)?THREE.MathUtils.clamp(Math.round(options.seed),1,999999):defaults.seed;
   state.shape=options.shape;state.surface=surfaces[options.surface]?options.surface:'stone';
-  Object.assign(state,sanitizeWorkshopOptions(options));
+  Object.assign(state,sanitizeWorkshopOptions(options),sanitizePathOptions(options));
+  if(!shapes[state.pathObject]||PATH_SHAPES.has(state.pathObject))state.pathObject='boulder';
   if(!Number.isFinite(options.materialRoughness))state.materialRoughness=surfaces[state.surface].roughness;
   state.lighting=['alpine','soft','sunset'].includes(options.lighting)?options.lighting:'alpine';
   state.ground=grounds[options.ground]?options.ground:'studio';
@@ -442,7 +522,7 @@ async function loadRecipe(data){
   }
   for(const slot of ['handle','trim'])for(const side of ['outer','inner']){
     const target=partStates[slot][side];Object.assign(target,makePartState(slot==='handle'?'oak':'brass'));
-    const saved=data.version===4?data.partMaterials?.[slot]?.[side]:null;if(!saved)continue;
+    const saved=data.version>=4?data.partMaterials?.[slot]?.[side]:null;if(!saved)continue;
     if(surfaces[saved.surface])applySurface(target,saved.surface);
     for(const spec of specs.filter(spec=>spec.kind==='material'))if(Number.isFinite(saved[spec.key]))target[spec.key]=THREE.MathUtils.clamp(saved[spec.key],spec.min??0,spec.max??1);
     for(const key of ['tint','absorptionColor'])if(/^#[0-9a-f]{6}$/i.test(saved[key]||''))target[key]=saved[key];
@@ -452,6 +532,7 @@ async function loadRecipe(data){
   fractureOptions=sanitizeFractureOptions({...FRACTURE_DEFAULTS,...(data.version>=3?data.fracture:{})});
   fracturePanel.setOptions(fractureOptions);fractureController?.update(fractureOptions);
   selectedLook='';materialFamily=materialFamilyFor(currentMaterialState().surface);renderShapes({reveal:true});updateMaterials();ground.update(state);applyLighting();generate(true);
+  if(isPath())setInspector('path');else if(inspector==='path')setInspector('shape');
   if(data.version>=3&&data.fracture?.enabled)await setFractureEnabled(true);
 }
 async function readRecipe(file){if(!file)return;try{await loadRecipe(JSON.parse(await file.text()));message('Asset recipe restored');}catch{message('Please choose a Rock Lab recipe JSON file.');}}
@@ -489,13 +570,14 @@ const menus=setupMenus(document.querySelector('.app-menubar'),{
 const cleanupTooltips=setupParameterTooltips();
 void audio.load().catch(()=>syncAudio());
 window.addEventListener('pagehide',()=>audio.stop());
-if(import.meta.hot)import.meta.hot.dispose(()=>{audio.dispose();menus.destroy();objectLibrary.destroy();latheEditor.destroy();cleanupTooltips();});
-window.rockLab={state,innerState,partStates,partMaterials,recipe,loadRecipe,generate,renderer,scene,camera,material,innerMaterial,ground,audio,setFractureEnabled,get fracture(){return fractureController;},getStats:()=>({triangles:Number(document.querySelector('#triangles').textContent.replaceAll(',','')),generationMs:lastGeneration,generationCount,drawCalls:renderer.info.render.calls,geometries:renderer.info.memory.geometries,programs:renderer.info.programs?.length,viewMode,ground:ground.getStats(),audio:audio.getState(),fracture:fractureController?.getStats()??{enabled:false}}),ready:true};
+if(import.meta.hot)import.meta.hot.dispose(()=>{audio.dispose();menus.destroy();objectLibrary.destroy();latheEditor.destroy();pathEditor.destroy();cleanupTooltips();});
+window.rockLab={state,innerState,partStates,partMaterials,recipe,loadRecipe,generate,renderer,scene,camera,material,innerMaterial,ground,audio,setFractureEnabled,get fracture(){return fractureController;},getStats:()=>({triangles:Number(document.querySelector('#triangles').textContent.replaceAll(',','')),generationMs:lastGeneration,generationCount,drawCalls:renderer.info.render.calls,geometries:renderer.info.memory.geometries,programs:renderer.info.programs?.length,viewMode,path:assets[0]?.userData.path,ground:ground.getStats(),audio:audio.getState(),fracture:fractureController?.getStats()??{enabled:false}}),ready:true};
 
 window.render_game_to_text=()=>JSON.stringify({
   coordinates:'Y up; floor y=0; x right and z depth in world space',
   shape:state.shape,seed:state.seed,outer:state.surface,inner:innerState.surface,ground:state.ground,
-  parts:shapes[state.shape].kind==='composite'?Object.fromEntries(Object.entries(partStates).map(([slot,pair])=>[slot,{outer:pair.outer.surface,inner:pair.inner.surface}])):undefined,
+  path:isPath()?{...assets[0]?.userData.path,points:state.pathPoints}:undefined,
+  parts:shapes[effectiveShape()].kind==='composite'?Object.fromEntries(Object.entries(partStates).map(([slot,pair])=>[slot,{outer:pair.outer.surface,inner:pair.inner.surface}])):undefined,
   destruction:fractureController?.getStats()??{enabled:false},
   audio:audio.getState(),
   pieces:fractureController?.getMeshes().slice(0,48).map(mesh=>({position:mesh.getWorldPosition(new THREE.Vector3()).toArray().map(n=>+n.toFixed(3)),generation:mesh.userData.generation??0}))??[],

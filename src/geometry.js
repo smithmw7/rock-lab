@@ -3,6 +3,8 @@ import { ConvexHull } from 'three/addons/math/ConvexHull.js';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createKitParts, KIT_GROUPS, KIT_SHAPES } from './kit-geometry.js';
 import { createWorkshopParts, sanitizeWorkshopOptions, WORKSHOP_GROUPS, WORKSHOP_SHAPES, WORKSHOP_CATALOG } from './workshop-geometry.js';
+import { createTerrainParts, TERRAIN_GROUPS, TERRAIN_SHAPES, TERRAIN_CATALOG } from './terrain-geometry.js';
+import { buildPathAsset, PATH_GROUPS, PATH_SHAPES, PATH_CATALOG } from './path-geometry.js';
 
 // All surface detail here is real geometry. Faces remain coherent polygons until
 // the final upload, so triangulation never becomes the visible surface language.
@@ -17,6 +19,8 @@ export const SHAPE_GROUPS = [
   { id: 'architecture', label: 'Architecture', shapes: KIT_GROUPS.architecture },
   { id: 'furniture', label: 'Furniture', shapes: KIT_GROUPS.furniture },
   ...WORKSHOP_GROUPS,
+  ...TERRAIN_GROUPS,
+  ...PATH_GROUPS,
 ];
 export const SHAPE_LABELS = {
   boulder: 'Boulder', stack: 'Rock steps', slab: 'Slab', spire: 'Spire', crystals: 'Crystals', arch: 'Rock arch',
@@ -26,6 +30,8 @@ export const SHAPE_LABELS = {
   roundArch: 'Round arch', pointedArch: 'Pointed arch', flatArch: 'Flat arch', bridge: 'Bridge', roundColumn: 'Round column', squareColumn: 'Square column', brokenColumn: 'Broken column', plinth: 'Plinth', doorway: 'Doorway',
   bench: 'Bench', table: 'Table', chair: 'Chair', stool: 'Stool',
   ...Object.fromEntries(Object.entries(WORKSHOP_CATALOG).map(([id, entry]) => [id, entry.label])),
+  ...Object.fromEntries(Object.entries(TERRAIN_CATALOG).map(([id, entry]) => [id, entry.label])),
+  ...Object.fromEntries(Object.entries(PATH_CATALOG).map(([id, entry]) => [id, entry.label])),
 };
 
 function randomGenerator(seed) {
@@ -642,7 +648,7 @@ function kitPrismFaces(section, depth, rng) {
   return faces;
 }
 
-function closedKitHull(sourceFaces) {
+function closedKitHull(sourceFaces, minimumAreaSq = 1e-10) {
   // Intersecting bevel cuts can leave micrometre slivers on thin furniture.
   // Merge those vertices, then rebuild the closed convex surface instead of
   // dropping a degenerate triangle and leaving a hole for the fracture engine.
@@ -657,7 +663,7 @@ function closedKitHull(sourceFaces) {
       const area = triangle[1].clone().sub(triangle[0]).cross(triangle[2].clone().sub(triangle[0])).lengthSq();
       // Leave area headroom for all three possible subdivision levels and
       // displacement. Otherwise a valid base sliver would reopen after detail.
-      if (area > 1e-10) continue;
+      if (area > minimumAreaSq) continue;
       // The vertex opposite the longest edge is the nearly collinear one.
       const edges = triangle.map((point, i) => point.distanceToSquared(triangle[(i + 1) % 3]));
       redundant = triangle[(edges.indexOf(Math.max(...edges)) + 2) % 3];
@@ -734,6 +740,59 @@ function buildKitAsset(options, material) {
     if (supported.has(b)) supported.add(a);
   }
   const unsupported = solids.flatMap((_, i) => supported.has(i) ? [] : [i]);
+  return finalizeAsset(group, options, { grounded, links, unsupported, settledChunks: [], jointTolerance: 0, method: 'convex-volume-intersection' });
+}
+
+function terrainPartFaces(points, rng) {
+  const hull = new ConvexHull().setFromPoints(points.map(point => new THREE.Vector3(...point))), planes = new Map();
+  // Coalesce coplanar hull triangles before wear. Broad stone faces retain one
+  // tone and normal instead of revealing their arbitrary upload triangulation.
+  for (const face of hull.faces) {
+    const vertices = [face.edge.head().point, face.edge.next.head().point, face.edge.next.next.head().point];
+    const key = [...face.normal.toArray(), face.normal.dot(vertices[0])].map(value => Math.round(value * 1e6)).join(',');
+    if (!planes.has(key)) planes.set(key, { normal: face.normal.clone(), vertices: [] });
+    planes.get(key).vertices.push(...vertices);
+  }
+  return [...planes.values()].map(face => polygon(face.vertices, face.normal, .42 + rng() * .15 + Math.max(0, face.normal.y) * .025));
+}
+
+function buildTerrainAsset(options, material) {
+  const group = new THREE.Group(), rng = randomGenerator(options.seed), solids = [];
+  group.name = `Procedural ${SHAPE_LABELS[options.shape]} ${options.seed}`;
+  for (const part of createTerrainParts(options.shape, options)) {
+    let faces = terrainPartFaces(part.points, rng);
+    const bounds = new THREE.Box3().setFromPoints(faces.flatMap(face => face.vertices));
+    const dimensions = bounds.getSize(new THREE.Vector3()), smallest = Math.min(dimensions.x, dimensions.y, dimensions.z);
+    const wear = options.roughness * (part.stony ? .07 : .025);
+    if (wear > 0) for (let i = 0; i < 3 + Math.round(options.facets * 5); i++) {
+      const normal = new THREE.Vector3(rng() < .5 ? -1 : 1, rng() < .5 ? -1 : 1, rng() < .5 ? -1 : 1);
+      normal.x *= .7 + rng() * .7; normal.z *= .7 + rng() * .7; normal.normalize();
+      const distance = Math.max(...faces.flatMap(face => face.vertices.map(point => normal.dot(point))));
+      faces = clipSolid(faces, normal, distance - smallest * wear * (.4 + rng() * .6), .43 + rng() * .16);
+    }
+    faces = bevelSolid(faces, smallest * options.bevel * (part.walkable ? .025 : .04), options.roughness * .4);
+    // Broad terrain bevels need extra area headroom before displacement
+    // subdivision, particularly where an overhang meets a slanted crown.
+    faces = closedKitHull(faces, 1e-8);
+    if (part.grounded) {
+      const minimum = Math.min(...faces.flatMap(face => face.vertices.map(point => point.y)));
+      faces = faces.map(face => ({ ...face, vertices: face.vertices.map(point => point.clone().setY(point.y - minimum)) }));
+    }
+    const geometry = toGeometry(faces);
+    geometry.userData.displacementWeight = part.walkable ? .18 : .5;
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = part.name; mesh.userData.materialSlot = 'primary';
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    group.add(mesh); solids.push(solidData(faces));
+  }
+  const grounded = solids.flatMap((solid, i) => solid.bounds.min.y < .002 ? [i] : []), links = [];
+  for (let i = 0; i < solids.length; i++) for (let j = 0; j < i; j++) if (solidsOverlap(solids[i], solids[j], 1e-7)) links.push([i, j]);
+  const reached = new Set(grounded);
+  for (let pass = 0; pass < solids.length; pass++) for (const [a, b] of links) {
+    if (reached.has(a)) reached.add(b);
+    if (reached.has(b)) reached.add(a);
+  }
+  const unsupported = solids.flatMap((_, i) => reached.has(i) ? [] : [i]);
   return finalizeAsset(group, options, { grounded, links, unsupported, settledChunks: [], jointTolerance: 0, method: 'convex-volume-intersection' });
 }
 
@@ -893,7 +952,7 @@ function finalizeAsset(group, options, connectivity) {
   group.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(group);
   const dimensions = bounds.getSize(new THREE.Vector3()), center = bounds.getCenter(new THREE.Vector3());
-  const scale = Math.min(KIT_SHAPES.has(options.shape) || WORKSHOP_SHAPES.has(options.shape) ? 1 : Infinity, 3.6 / dimensions.x, 3.4 / dimensions.y, 3.2 / dimensions.z);
+  const scale = Math.min(KIT_SHAPES.has(options.shape) || WORKSHOP_SHAPES.has(options.shape) || TERRAIN_SHAPES.has(options.shape) ? 1 : Infinity, 3.6 / dimensions.x, 3.4 / dimensions.y, 3.2 / dimensions.z);
   for (const mesh of group.children) {
     mesh.position.x = (mesh.position.x - center.x) * scale;
     mesh.position.y = (mesh.position.y - bounds.min.y) * scale;
@@ -926,7 +985,9 @@ export function buildAsset(input = {}, material) {
     geometryNoiseScale: clamp(Number.isFinite(input.geometryNoiseScale) ? input.geometryNoiseScale : (Number.isFinite(input.noiseScale) ? input.noiseScale : 2), 0.3, 8),
     noiseSeed: Number.isFinite(Number(input.noiseSeed)) ? Number(input.noiseSeed) : undefined,
   };
+  if (PATH_SHAPES.has(options.shape)) return buildPathAsset({ ...input, ...options }, material, buildAsset);
   if (WORKSHOP_SHAPES.has(options.shape)) return buildWorkshopAsset({ ...options, ...sanitizeWorkshopOptions(input) }, material);
+  if (TERRAIN_SHAPES.has(options.shape)) return buildTerrainAsset(options, material);
   if (KIT_SHAPES.has(options.shape)) return buildKitAsset(options, material);
   if (SHAPE_GROUPS.slice(1).some(section => section.shapes.includes(options.shape))) return buildDesignedAsset(options, material);
   const rng = randomGenerator(options.seed);

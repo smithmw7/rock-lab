@@ -74,7 +74,7 @@ try {
   const downloadEvent = page.waitForEvent('download');
   await page.locator('#save-recipe').click();
   const download = await downloadEvent;
-  const actualExport = path.join(output, 'actual-export-v4.json');
+  const actualExport = path.join(output, 'actual-export-v5.json');
   await download.saveAs(actualExport);
   assert.equal(await download.failure(), null);
   const exportedText = await fs.readFile(actualExport, 'utf8');
@@ -101,7 +101,7 @@ try {
   assert.equal(restored.stats.fragments, 0);
   assert.equal(restored.stats.generation, 0);
   assert.equal(restored.stats.meshes, restored.stats.sourcePieces);
-  report.checks.v4DownloadAndFilePickerRoundtrip = { passed: true, restored };
+  report.checks.v5DownloadAndFilePickerRoundtrip = { passed: true, restored };
 
   const dragStart = await pieceScreenPosition();
   const cameraBefore = await page.evaluate(() => window.rockLab.camera.position.toArray());
@@ -122,7 +122,7 @@ try {
   assert.equal(afterTap.stats.generation, 1);
   assert.ok(afterTap.stats.fragments > 0);
   report.checks.orbitVersusTap = { passed: true, cameraMoved: true, fragmentsAfterDrag: afterDrag.stats.fragments, fragmentsAfterTap: afterTap.stats.fragments };
-  await page.screenshot({ path: path.join(output, 'v4-roundtrip-tap.png') });
+  await page.screenshot({ path: path.join(output, 'v5-roundtrip-tap.png') });
 
   const v1 = { generator: 'procedural-rock-lab', version: 1, options: { seed: 34151, shape: 'slab', surface: 'ice', facets: .45, roughness: .35, bevel: .6, snow: .4, detail: .55, contrast: .7, lighting: 'soft' } };
   const v2 = { generator: 'procedural-rock-lab', version: 2, options: { seed: 48172, shape: 'wall', surface: 'granite', facets: .32, roughness: .16, bevel: .64, displacement: .13, geometryNoiseScale: 2.5, noiseScale: 3.7, noiseAmount: .61, normalStrength: .52, materialRoughness: .72, snow: 0, detail: .48, contrast: .62, lighting: 'sunset', ground: 'concrete', reflection: .41, groundWetness: .23, groundScale: 1.4, mapView: 'beauty' } };
@@ -133,7 +133,7 @@ try {
     await importFile(filename, fixture.options.seed);
     const loaded = await snapshot();
     for (const [key, value] of Object.entries(fixture.options)) assert.equal(loaded.recipe.options[key], value, `v${fixture.version} option ${key}`);
-    assert.equal(loaded.recipe.version, 4);
+    assert.equal(loaded.recipe.version, 5);
     assert.equal(loaded.recipe.innerMaterial.surface, fixture.innerMaterial?.surface??'limestone');
     for(const [key,value] of Object.entries(fixture.innerMaterial??{}))assert.equal(loaded.recipe.innerMaterial[key],value);
     assert.equal(loaded.recipe.fracture.method, fixture.fracture?.method??'voronoi');

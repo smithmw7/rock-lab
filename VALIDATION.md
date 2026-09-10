@@ -2,6 +2,19 @@
 
 Checked September 9, 2026.
 
+## Terrain and spline paths
+
+- Added 16 terrain forms and five path styles for 79 total objects; the existing 25-material catalog is unchanged. Path scatter offers all 74 non-path source objects. Recipes now use version 5 and accept versions 1–5.
+- `npm run verify:terrain` passes 224 geometry cases across 790 meshes and 1,533,780 welded edges, with positive volumes, safe normals, grounding, genuine convex support intersections, and broad flat platform crowns. Maximum tested terrain geometry is 34,560 triangles. Every terrain form also passes actual Pinata fracture and Rapier stepping.
+- All 58 prior objects retain identical geometry attributes and mesh transforms in 232 comparisons covering two seeds and displacement off/on. The terrain-only hull cleanup threshold removes tiny bevel slivers before subdivision without changing the older geometry paths.
+- Menu QA and parameter-tooltip QA pass after the Path inspector integration. All 125 parameter labels have help, with no tooltips on action buttons, tabs, or cards. These checks are desktop and emulated narrow-screen browser checks.
+- `npm run verify:paths` passes 98 cases across 5,298 meshes, 506,508 welded edges, and 4,720 fitted or scattered footprints. Maximum tested path geometry is 76,800 triangles. The original kit's 80 extreme cases and workshop's 114 cases also pass. Path and terrain checks run in Pages CI.
+- `npm run verify` passes 474 baseline, 158 displacement, and 10 dense-path/recursion cases across all 79 objects. The final fracture suite passes 90 actual Pinata/Rapier cases, including independent path pieces and composite material preservation. The deliberate approximation test retains its expected warning.
+- `npm run qa:paths` passes 14 browser groups on frozen source: all 21 new forms rendered and visually inspected, repeat-generation resource reuse, mouse/keyboard/touch point editing, layout controls, seeded determinism, separate composite materials, native v5 save/load and v4 migration, visible budgets, real one-piece pointer fracture, and exact reset. No browser errors or warnings were recorded.
+- Regression coverage confirms that deleting to two points disables a closed loop, coincident adjacent edits are rejected without replacing the route, a valid 0.05-unit empty paving layout retains a finite camera and explains how to place pieces, and switching into 128 repeated blocks during active destruction raises the live limit from 120 to 160.
+- The standard web-game client renders the stepping-stone route with matching text state. Root review includes its screenshot, the terrain/path contact sheet, the revised cobble and plank layouts, and the touch editor. These are desktop and emulated-touch checks; physical-device performance remains unverified.
+- Production build and publication checks pass. The built app was served under an actual `/rock-lab/` prefix; its public audio, worker, physics, pointer fracture/reset, recipe download, and relative asset URLs pass with no browser errors. Private recordings and reference artwork remain excluded. Vite retains its existing large-chunk warning.
+
 ## Composite workshop and spline lathe
 
 - Added 20 objects for 58 total and 15 materials for 25 total. The new collections include three composite tools, eight metal primitives, and nine lathe objects. Four hammer heads and three knife blades change actual geometry.

@@ -31,9 +31,13 @@ Start with **bowl**, **vase**, **jar**, **urn**, **planter**, **saucer**, **gobl
 - **Wall thickness** sets the shell thickness. Narrow radii are bounded to preserve an opening and avoid intersecting walls. Large shapes are normalized to the existing preview bounds.
 - **Reset profile points** restores the six point multipliers while preserving the other controls.
 
-Recipes now use **version 4** and include the profile, tool variants, and all three outer/inner material pairs. Versions 1–3 remain readable and receive defaults for new fields. Save through **File → Save recipe**. Mesh and baked-texture export are still separate future work.
+Recipes now use **version 5** and include the profile, tool variants, all three outer/inner material pairs, and path settings. Versions 1–5 remain readable and receive defaults for missing fields. Save through **File → Save recipe**. Mesh and baked-texture export are still separate future work.
 
 Destruction remains a fracture preview: all materials break as rigid chunks, including metal. It does not model bending metal, grain-driven wood splintering, or structural collapse. Rapier's convex debris colliders approximate concave shapes.
+
+## Repeat workshop objects along a path
+
+Choose **Path → Scatter objects**, then select a tool, metal primitive, or lathe object as the source. Its component materials remain separate across every copy. The **Shape** inspector still exposes the source’s tool and lathe controls, and **Object scale** changes its size along the route. See the [path guide](PATHS.md) for route editing, placement, and shared geometry budgets.
 
 ## Implementation references
 

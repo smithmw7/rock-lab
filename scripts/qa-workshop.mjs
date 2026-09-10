@@ -114,7 +114,7 @@ try {
   for (const id of WORKSHOP_SHAPES) assert.ok(surfaces[WORKSHOP_CATALOG[id].defaultSurface], `${id} has a valid default material`);
   await page.goto(report.url); await page.waitForFunction(() => window.rockLab?.ready && window.rockLab.partStates && window.rockLab.partMaterials);
   await page.locator('#sound-toggle').click();
-  assert.equal((await snapshot()).recipe.version, 4);
+  assert.equal((await snapshot()).recipe.version, 5);
   assert.equal(await page.locator('#shapes [data-shape]').count(), Object.keys(shapes).length);
   for (const id of WORKSHOP_SHAPES) {
     await selectShape(id); const value = await snapshot();
@@ -167,7 +167,7 @@ try {
   const edited = await snapshot(); assert.notDeepEqual(edited.recipe.options.latheProfile, dragBefore.recipe.options.latheProfile); assert.notEqual(edited.geometryHash, dragBefore.geometryHash);
   await page.screenshot({ path: path.join(output, 'lathe-profile-desktop.png') }); report.checks.latheControlsAndProfileEditing = { latheControls, profile: edited.recipe.options.latheProfile };
   const latheDownload = page.waitForEvent('download'); await page.locator('#menu-file').click(); await page.locator('#save-recipe').click();
-  const latheFile = path.join(output, 'lathe-profile-v4.json'); await (await latheDownload).saveAs(latheFile);
+  const latheFile = path.join(output, 'lathe-profile-v5.json'); await (await latheDownload).saveAs(latheFile);
   await page.locator('#reset-lathe-profile').click(); await page.waitForFunction(() => window.rockLab.state.latheProfile === null);
   await importFile(latheFile); assert.deepEqual((await snapshot()).recipe, edited.recipe); report.checks.latheProfileFileRoundtrip = true;
 
@@ -214,11 +214,11 @@ try {
   await page.waitForFunction(() => window.rockLab.fracture.getStats().generation === 2 && !window.rockLab.fracture.getStats().busy);
   const repeated = await snapshot(); assert.ok(repeated.correctBindings); assert.ok(repeated.finite);
   const downloadEvent = page.waitForEvent('download'); await page.locator('#menu-file').click(); await page.locator('#save-recipe').click();
-  const download = await downloadEvent, compositeFile = path.join(output, 'composite-part-materials-v4.json'); await download.saveAs(compositeFile); assert.equal(await download.failure(), null);
+  const download = await downloadEvent, compositeFile = path.join(output, 'composite-part-materials-v5.json'); await download.saveAs(compositeFile); assert.equal(await download.failure(), null);
   assert.deepEqual(JSON.parse(await fs.readFile(compositeFile, 'utf8')), repeated.recipe);
   await page.locator('#tab-studio').click(); await page.locator('#reset').click(); await importFile(compositeFile);
   const restored = await snapshot(); assert.deepEqual(restored.recipe, repeated.recipe); assert.equal(restored.stats.fracture.generation, 0); assert.equal(restored.stats.fracture.fragments, 0); assert.ok(restored.correctBindings);
-  report.checks.compositePointerFractureAndV4FileRoundtrip = { fragmentsOnFirstTap: firstCut.stats.fracture.fragments, repeatedGeneration: repeated.stats.fracture.generation, restoredRoles: restored.roles, file: compositeFile };
+  report.checks.compositePointerFractureAndV5FileRoundtrip = { fragmentsOnFirstTap: firstCut.stats.fracture.fragments, repeatedGeneration: repeated.stats.fracture.generation, restoredRoles: restored.roles, file: compositeFile };
   await capture('composite-restored');
 
   await contactSheet([...WORKSHOP_SHAPES].map(id => `shape-${id}`), 'workshop-object-contact-sheet.png');

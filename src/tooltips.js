@@ -3,6 +3,22 @@ import './tooltips.css';
 // Help belongs to parameter labels. Action buttons, tabs, preset cards, and
 // disclosure summaries deliberately never receive tooltip behavior.
 export const PARAMETER_HELP = Object.freeze({
+  "path-point": "Chooses one of the route control points for coordinate editing. Points connect in numbered order. Add or insert points to create more bends.",
+  "path-x": "Moves the selected route point across the top view, in world units. Negative values move left; positive values move right. The range is -12 to 12. Neighboring points must remain apart.",
+  "path-z": "Moves the selected route point vertically in the top view, in world units. Negative values move up; positive values move down. The range is -12 to 12. Neighboring points must remain apart.",
+  "pathObject": "Chooses the object repeated along the spline. Composite tools retain separate head, handle, and fitting materials. Edit its geometry in Shape and its finish in Material.",
+  "pathWidth": "Sets the width of the paved ribbon or wooden boards, in world units. Higher values widen the walkway and can add more paving cells. For spaced stones and repeated objects, this sets the available lateral scatter width when Shape variation is above zero.",
+  "pathSpacing": "Sets the clear gap between pieces in world units. For fitted bricks and cobbles this is the mortar gap; higher values separate the cells more. For spaced layouts higher values spread instances farther apart.",
+  "pathPieceSize": "Sets the length or cell size of paving pieces. Lower values create smaller, more numerous pieces; higher values create broader stones, bricks, or boards. Object scatter uses Object scale instead.",
+  "pathThickness": "Sets the actual vertical thickness of paving pieces in world units. Lower values create thin walking slabs; higher values create deeper blocks. It does not resize repeated source objects.",
+  "pathSmoothness": "Blends straight segments between route points into a centripetal cubic spline. Zero gives angular turns; higher values soften bends. Tight turns may omit pieces that would overlap.",
+  "pathOffset": "Shifts the layout sideways relative to the route, in world units. Negative and positive values choose opposite sides; zero follows the centerline.",
+  "pathJitter": "Adds repeatable variation using the Shape seed. Higher values vary stepping stones, boards, and objects more. Cobblestones vary their cell layout and height; bricks vary their height.",
+  "pathRotation": "Adds seeded rotation to spaced stones, planks, and repeated objects. Zero keeps their base alignment; higher values turn pieces farther in either direction. Fitted paving keeps shared boundaries instead.",
+  "pathObjectScale": "Scales each repeated source object before spacing it along the route. Higher values create larger instances and generally fit fewer along the same length.",
+  "pathAlign": "Rotates repeated source objects to follow the route tangent. Turning it off holds a fixed orientation. Paving layouts follow their route automatically.",
+  "pathClosed": "Connects the last control point back to the first to create a loop. A loop needs at least three distinct points. Turning it off leaves the route ends open.",
+
   hammerHead: 'Changes the hammer head geometry: a broad club, rounded ball peen, narrow cross peen, or forked claw. The handle and its material remain independently editable.',
   knifeBlade: 'Chooses a chef blade, a tapered drop-point blade, or a broad cleaver. The choice changes the actual blade silhouette while keeping the handle separate.',
   handleLength: 'Scales the wooden handle length. Lower values create a compact tool; higher values make a longer grip while keeping the head attached.',

@@ -6,24 +6,28 @@ import { createRockMaterial, updateRockMaterial, ROCK_SURFACES } from '../src/ma
 import { shapes as catalogShapes, surfaces, grounds, looks } from '../src/catalog.js';
 import { GROUND_TYPES } from '../src/ground.js';
 import { WORKSHOP_MATERIAL_DEFAULTS, WORKSHOP_MATERIAL_RANGES, WORKSHOP_SURFACES } from '../src/workshop-materials.js';
+import { PATH_SHAPES, PATH_MAX_TRIANGLES, PATH_LIMITS } from '../src/path-geometry.js';
+import { assertPathDiagnostics, assertNonOverlappingFootprints } from './path-assertions.mjs';
 
 const material=new MeshBasicMaterial();
 const shapes=SHAPE_GROUPS.flatMap(group=>group.shapes);
 assert.deepEqual([...shapes].sort(),Object.keys(catalogShapes).sort());
 assert.deepEqual(ROCK_SURFACES.map(s=>s.key).sort(),Object.keys(surfaces).sort());
 assert.deepEqual(Object.keys(GROUND_TYPES).sort(),Object.keys(grounds).sort());
-const timings=[];let combinations=0,displacementCases=0,maxTriangles=0;
-function hash(group){const h=createHash('sha256');group.traverse(mesh=>{if(mesh.isMesh){h.update(Buffer.from(mesh.geometry.attributes.position.array.buffer));h.update(JSON.stringify(mesh.matrix.elements));}});return h.digest('hex');}
+const timings=[];let combinations=0,displacementCases=0,maxTriangles=0,pathBudgetCases=0;
+function hash(group){const h=createHash('sha256');group.updateMatrixWorld(true);group.traverse(mesh=>{if(mesh.isMesh){h.update(Buffer.from(mesh.geometry.attributes.position.array.buffer));h.update(JSON.stringify(mesh.matrixWorld.elements));}});return h.digest('hex');}
 function validate(group,shape){
   const bounds=new Box3().setFromObject(group),size=bounds.getSize(new Vector3());
   assert.equal(group.userData.connectivity?.unsupported.length,0,`${shape} has unsupported chunks`);
   assert(Math.abs(bounds.min.y)<.002,`${shape} must rest at y=0`);
   assert(size.x>0&&size.y>0&&size.z>0,`${shape} must have volume`);
-  assert(size.x<=3.601&&size.y<=3.401&&size.z<=3.201,`${shape} exceeds normalization bounds`);
-  let triangles=0;
+  const isPath=PATH_SHAPES.has(shape);
+  if(isPath)assert(size.x<=PATH_LIMITS.coordinateLimit*2+8&&size.y<=3.401&&size.z<=PATH_LIMITS.coordinateLimit*2+8,`${shape} exceeds bounded world dimensions`);
+  else assert(size.x<=3.601&&size.y<=3.401&&size.z<=3.201,`${shape} exceeds normalization bounds`);
+  let triangles=0,meshes=0;
   group.traverse(mesh=>{
     if(!mesh.isMesh)return;
-    const geo=mesh.geometry,pos=geo.attributes.position;
+    const geo=mesh.geometry,pos=geo.attributes.position;meshes++;
     assert.equal(pos.count%3,0);triangles+=pos.count/3;
     for(const name of ['position','normal','color','aFaceTone','aBevel','uv']){
       const attribute=geo.attributes[name];assert(attribute,`${shape} missing ${name}`);assert.equal(attribute.count,pos.count);
@@ -36,7 +40,8 @@ function validate(group,shape){
       assert(face.dot(n)>0,`${shape} reversed winding`);
     }
   });
-  assert(triangles<=36000,`${shape} exceeded triangle budget`);maxTriangles=Math.max(maxTriangles,triangles);
+  assert(triangles<=(isPath?PATH_MAX_TRIANGLES:36000),`${shape} exceeded triangle budget`);maxTriangles=Math.max(maxTriangles,triangles);
+  if(isPath){assertPathDiagnostics(group.userData.path,{meshes,triangles},shape);if(['brickPath','cobblePath'].includes(shape))assertNonOverlappingFootprints(group.userData.path.footprints,shape);}
 }
 for(const shape of shapes)for(const seed of [1,18427,999999])for(const level of [0,1]){
   const start=performance.now(),options={shape,seed,facets:level,roughness:level,bevel:level};
@@ -51,6 +56,16 @@ for(const shape of shapes)for(const geometryNoiseScale of [.3,8]){
   const repeat=buildAsset({...options,displacement:1},material);assert.equal(hash(displaced),hash(repeat));
   disposeAsset(plain);disposeAsset(displaced);disposeAsset(repeat);displacementCases++;
 }
+// Paths retain authored world units, report dense-preview truncation, and
+// cannot recursively select another path as the repeated source object.
+for(const shape of PATH_SHAPES){
+  const options={shape,seed:63124,pathPoints:[{x:-11,z:-11},{x:11,z:-11},{x:11,z:11},{x:-11,z:11}],pathClosed:true,pathWidth:3,pathPieceSize:.25,pathSpacing:.05,pathObjectScale:.15};
+  const dense=buildAsset(options,material);validate(dense,shape);
+  assert.equal(dense.userData.path.truncated,true,`${shape} must report truncated dense output`);
+  assert(Math.max(...new Box3().setFromObject(dense).getSize(new Vector3()).toArray())>3.6,`${shape} must preserve authored world units`);
+  disposeAsset(dense);pathBudgetCases++;
+}
+for(const pathObject of PATH_SHAPES){const source=buildAsset({shape:'objectPath',pathObject,seed:17},material);validate(source,'objectPath');assert(!PATH_SHAPES.has(source.userData.options.pathObject),'A path cannot recursively instance another path');disposeAsset(source);pathBudgetCases++;}
 const mat=createRockMaterial(),key=mat.customProgramCacheKey(),version=mat.version;
 const originalSurfaceKeys=new Set(['stone','ice','desert','limestone','granite','basalt','obsidian']);
 const nativeFeatures=['transmission','dispersion','iridescence','clearcoat'];
@@ -91,4 +106,4 @@ for(const [surface,preset] of Object.entries(WORKSHOP_SURFACES)){
 }
 for(const look of Object.values(looks)){assert(catalogShapes[look.options.shape]);assert(surfaces[look.options.surface]);assert(grounds[look.options.ground]);}
 mat.dispose();material.dispose();timings.sort((a,b)=>a-b);
-console.log(JSON.stringify({passed:true,shapes:shapes.length,materials:ROCK_SURFACES.length,grounds:Object.keys(grounds).length,baseCases:combinations,displacementCases,maxTriangles,medianBaseGenerationMs:+timings[Math.floor(timings.length/2)].toFixed(2),p95BaseGenerationMs:+timings[Math.floor(timings.length*.95)].toFixed(2),checks:['geometry and UV validity','winding','support and grounding','bounds','deterministic geometry','actual displacement','triangle budget','uniform-only materials','catalog and preset consistency']},null,2));
+console.log(JSON.stringify({passed:true,shapes:shapes.length,materials:ROCK_SURFACES.length,grounds:Object.keys(grounds).length,baseCases:combinations,displacementCases,pathBudgetCases,maxTriangles,medianBaseGenerationMs:+timings[Math.floor(timings.length/2)].toFixed(2),p95BaseGenerationMs:+timings[Math.floor(timings.length*.95)].toFixed(2),checks:['geometry and UV validity','winding','support and grounding','bounds','deterministic geometry','actual displacement','triangle budget','path world units and truncation','nonrecursive source objects','nonoverlapping fitted paving','uniform-only materials','catalog and preset consistency']},null,2));

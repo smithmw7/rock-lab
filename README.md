@@ -15,7 +15,9 @@ Build a rock formation, turn it into quartz, set it on wet asphalt, and tap to f
 
 | | What's inside |
 | :--- | :--- |
-| **58 objects** | Rocks, modular architecture, furniture, composite tools, metal stock, and turned pottery in a searchable scrolling library |
+| **79 objects** | Rocks, terrain, modular architecture, furniture, tools, metal stock, pottery, and paths in a searchable scrolling library |
+| **Terrain kit** | 16 cliffs, rock pillars, flat platforms, and stone ramps using the original material system |
+| **Spline paths** | Editable stepping stones, fitted bricks and cobbles, wooden planks, or any of 74 source objects |
 | **25 materials** | Stone and ice, glass and crystal, eight metals, three woods, and four ceramic finishes |
 | **Composite tools** | Four hammer heads, three knife blades, and a hatchet with separate handle, working end, and fitting materials |
 | **Spline lathe** | Drag six profile points to reshape bowls, vases, jars, urns, planters, saucers, goblets, and candlesticks |
@@ -53,6 +55,8 @@ Open [localhost:5207](http://127.0.0.1:5207/). Choose another free port if it is
 npm run verify                 # Seeded geometry and material checks
 npm run verify:kit             # Closed meshes across kit parameter extremes
 npm run verify:workshop        # Tool variants, hollow vessels, and spline extremes
+npm run verify:terrain         # Closed terrain meshes and actual fracture
+npm run verify:paths           # Fitted paving, spacing, world scale, and budgets
 npm run verify:fracture        # Actual fracture geometry and physics
 npm run build                 # Portable static app in dist/
 npm run verify:publication     # Check deployable assets and exclusions
@@ -63,15 +67,16 @@ The GitHub Actions workflow builds and deploys `main` to Pages. Relative asset p
 
 ## Export and reuse
 
-**Available today:** recipe JSON and viewport PNG. Recipes restore the intact source with geometry, independent materials, lighting, ground, and fracture settings. Moving debris and camera position are not serialized. Older recipe versions remain supported.
+**Available today:** recipe JSON and viewport PNG. Recipes restore the intact source with geometry, independent materials, lighting, ground, and fracture settings. Recipes now use version 5, including editable path points and repeated-object settings. Moving debris and camera position are not serialized. Versions 1–5 remain supported.
 
 **Not yet implemented:** GLB export, UV atlasing, and baked PBR texture export. Normal/height/roughness views are shader diagnostics. They are not downloadable game texture maps.
 
 Start with [`src/geometry.js`](src/geometry.js), [`src/material.js`](src/material.js), [`src/ground.js`](src/ground.js), and [`src/fracture.js`](src/fracture.js) to reuse the generators in another Three.js project. The [full guide](docs/USER-GUIDE.md) explains the controls, integration, rendering tradeoffs, and game-asset pipeline.
 
 - [Glass, crystal, and ice shader research](TRANSLUCENT-MATERIALS.md)
-- [Object library: all 58 forms](docs/OBJECT-LIBRARY.md)
+- [Object library: all 79 forms](docs/OBJECT-LIBRARY.md)
 - [Composite tools, materials, and spline lathe guide](docs/WORKSHOP.md)
+- [Terrain and editable spline paths](docs/PATHS.md)
 - [Stylized wood research and pipeline](STYLIZED-WOOD-RESEARCH.md)
 - [Validation notes](VALIDATION.md)
 - [Contributor rules](AGENTS.md)

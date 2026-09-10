@@ -58,6 +58,7 @@
       <aside>
         <nav class="inspector-tabs" role="tablist" aria-label="Inspector">
           <button role="tab" id="tab-shape" data-panel="shape" aria-selected="true" aria-controls="panel-shape">Shape</button>
+          <button role="tab" id="tab-path" data-panel="path" aria-selected="false" aria-controls="panel-path">Path</button>
           <button role="tab" id="tab-material" data-panel="material" aria-selected="false" aria-controls="panel-material">Material</button>
           <button role="tab" id="tab-fracture" data-panel="fracture" aria-selected="false" aria-controls="panel-fracture">Fracture</button>
           <button role="tab" id="tab-ground" data-panel="ground" aria-selected="false" aria-controls="panel-ground">Ground</button>
@@ -100,6 +101,27 @@
           <div class="section-title separated"><span>02</span><h2>Geometry relief</h2></div>
           <div id="displacement-controls"></div>
           <p class="control-note">Displacement moves vertices and changes the silhouette. Enable wireframe in Studio to see the extra geometry.</p>
+        </section>
+        <section id="panel-path" role="tabpanel" aria-labelledby="tab-path" hidden>
+          <div class="section-title"><span>01</span><h2>Spline paths</h2><span class="count-badge">5 styles</span></div>
+          <div class="path-presets" aria-label="Path presets">
+            <button data-path-style="steppingStonePath">Stepping stones</button><button data-path-style="brickPath">Brick paving</button>
+            <button data-path-style="cobblePath">Fitted cobbles</button><button data-path-style="plankPath">Wooden planks</button>
+            <button data-path-style="objectPath">Scatter objects</button>
+          </div>
+          <div id="path-source-row" class="select-row" hidden><label for="pathObject">Source object</label><select id="pathObject"></select></div>
+          <p class="control-note">Draw a route in the top view. Each piece is a separate mesh, ready for individual tap destruction.</p>
+          <svg id="path-editor" viewBox="0 0 260 220" role="group" aria-label="Editable path points, top view" aria-describedby="path-editor-note"></svg>
+          <p id="path-editor-note" class="control-note">Drag numbered points. Arrow keys move a focused point; Shift makes larger steps. X runs across the view, Z runs down.</p>
+          <div class="select-row"><label for="path-point">Path point</label><select id="path-point"></select></div>
+          <div class="path-coordinate-row"><div><label for="path-x">Point X</label><input id="path-x" type="number" min="-12" max="12" step="0.1" /></div><div><label for="path-z">Point Z</label><input id="path-z" type="number" min="-12" max="12" step="0.1" /></div></div>
+          <div class="path-actions"><button id="path-add-point">Add point</button><button id="path-insert-point">Insert after</button><button id="path-remove-point">Remove point</button><button id="path-reset-points">Reset route</button></div>
+          <div class="path-checks"><label for="pathClosed"><input id="pathClosed" type="checkbox" />Closed loop</label><label for="pathAlign"><input id="pathAlign" type="checkbox" />Follow tangent</label></div>
+          <p id="path-status" class="path-status" role="status" aria-live="polite"></p>
+          <div class="section-title separated"><span>02</span><h2>Layout</h2></div><div id="path-layout-controls"></div>
+          <div id="path-object-controls" hidden></div>
+          <div class="section-title separated"><span>03</span><h2>Variation</h2></div><div id="path-variation-controls"></div>
+          <p class="control-note">Use Shape for the seed, bevel, displacement, and source geometry. Use Material for the finish. Paths retain their world size and use the single-layout view, with up to 128 meshes and 80,000 triangles.</p>
         </section>
         <section id="panel-material" role="tabpanel" aria-labelledby="tab-material" hidden>
           <div id="material-slot-row" class="select-row" hidden><label for="material-slot">Object part</label><select id="material-slot"><option value="primary">Head / blade</option><option value="handle">Handle</option><option value="trim">Fittings</option></select></div>

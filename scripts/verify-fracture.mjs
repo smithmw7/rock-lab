@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { buildAsset, disposeAsset, SHAPE_GROUPS } from '../src/geometry.js';
 import { createFractureLab, sanitizeFractureOptions } from '../src/fracture.js';
 import { verifyFractureMaterials } from './verify-fracture-materials.mjs';
+import { PATH_SHAPES } from '../src/path-geometry.js';
 
 const scene = new THREE.Scene(), outer = new THREE.MeshStandardMaterial(), inner = new THREE.MeshStandardMaterial();
 const events = [];
@@ -21,7 +22,7 @@ const load = (shape, extra = {}) => {
   scene.add(source); lab.setSource(source); lab.setEnabled(true);
   assert.equal(source.visible, false);
 };
-function validateFragments() {
+function validateFragments({ allowIntact = false, maxPieces = 120 } = {}) {
   const meshes = lab.getMeshes();
   assert(meshes.length >= 2);
   for (const mesh of meshes) {
@@ -32,13 +33,14 @@ function validateFragments() {
     }
     assert(mesh.position.toArray().every(Number.isFinite));
     assert(mesh.quaternion.toArray().every(Number.isFinite));
-    assert(geometry.groups.some(group => group.materialIndex === 1 && group.count > 0));
-    assert.equal(mesh.material[0], outer); assert.equal(mesh.material[1], inner);
+    if(allowIntact&&mesh.userData.generation===0)assert.equal(mesh.material,outer);
+    else { assert(geometry.groups.some(group => group.materialIndex === 1 && group.count > 0)); assert.equal(mesh.material[0], outer); assert.equal(mesh.material[1], inner); }
   }
-  assert(lab.getStats().meshes <= 120);
+  assert(lab.getStats().meshes <= maxPieces);
 }
 
 for (const shape of SHAPE_GROUPS.flatMap(group => group.shapes)) {
+  if(PATH_SHAPES.has(shape))continue;
   load(shape);
   lab.update({ method: 'voronoi', fragmentCount: 3, impactEnabled: false, seed: 701, maxGeneration: 2, maxFragments: 120, impulse: 0.5 });
   assert.equal(await lab.fractureAll(), true, `${shape}: ${lab.getStats().message}`);
@@ -47,6 +49,21 @@ for (const shape of SHAPE_GROUPS.flatMap(group => group.shapes)) {
   validateFragments();
   lab.reset(); assert.equal(lab.getStats().fragments, 0); assert.equal(lab.getStats().meshes, source.children.length);
   cases++;
+}
+
+// A path is a bounded arrangement of independent pieces. Exercise a real
+// top-down hit on one piece without recursively breaking every instance.
+for(const shape of PATH_SHAPES){
+  load(shape);
+  lab.update({method:'voronoi',fragmentCount:3,impactEnabled:false,seed:701,maxGeneration:2,maxFragments:160,impulse:.2});
+  const originalCount=lab.getMeshes().length;
+  const target=lab.getMeshes()[Math.floor(originalCount/2)],box=new THREE.Box3().setFromObject(target),center=box.getCenter(new THREE.Vector3());
+  const ray=new THREE.Raycaster(new THREE.Vector3(center.x,box.max.y+5,center.z),new THREE.Vector3(0,-1,0));
+  assert(await lab.tap(ray),`${shape}: ${lab.getStats().message}`);
+  assert.equal(lab.getStats().generation,1);assert(lab.getStats().fragments>=2);
+  assert.equal(lab.getMeshes().filter(mesh=>mesh.userData.generation===0).length,originalCount-1,'A tap only replaces one path piece');
+  validateFragments({allowIntact:true,maxPieces:160});for(let i=0;i<6;i++)lab.step(1/60);validateFragments({allowIntact:true,maxPieces:160});
+  lab.reset();assert.equal(lab.getStats().fragments,0);assert.equal(lab.getStats().meshes,originalCount);cases++;
 }
 
 load('block', { roughness: 0, bevel: 0.4 });

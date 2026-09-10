@@ -25,12 +25,22 @@ The **Shape** inspector opens to a scrollable **All** library. Search by object 
 | Tools | Hammer, knife, hatchet | Composite props with interchangeable heads or blades and separate material roles |
 | Metal | Plate, rod, tube, ring, I-beam, angle bracket, hex bolt, gear | Machined stock, structural supports, and mechanical props |
 | Lathe | Bowl, vase, jar, urn, planter, saucer, goblet, metal/wooden candlesticks | Hollow pottery and turned decorative forms with editable spline profiles |
+| Terrain | Four cliffs, three rock pillars, five flat platforms, four ramps | Layered landscapes and modular stone walking surfaces |
+| Paths | Stepping stones, fitted bricks/cobbles, plank walkway, repeated objects | Editable spline layouts in world units |
 
-There are **58 objects**, including the [modular kit and workshop expansion](OBJECT-LIBRARY.md). The modular kit uses shared units; its small, medium, and large blocks have nominal sides of 0.8, 1.5, and 2.5 units before edge wear or displacement. Existing rock forms keep their original presentation scale. All geometry presets can use any current material. Workshop objects supply an initial finish when selected.
+There are **79 objects**, including the [modular kit, workshop, terrain, and path collections](OBJECT-LIBRARY.md). The modular kit uses shared units; its small, medium, and large blocks have nominal sides of 0.8, 1.5, and 2.5 units before edge wear or displacement. Existing rock forms keep their original presentation scale. All geometry presets can use any current material. Workshop objects supply an initial finish when selected.
 
 Six **world presets** combine shapes, materials, lighting, and ground: Alpine, Desert, Volcanic, Ruins, Quarry, and Frozen. These are starting recipes. Every component can be changed independently afterward. The Structures family contains actual multi-piece assemblies, not thumbnails of suggested assets.
 
-The seed, plane cuts/detail, irregularity/distortion, and bevel controls generate the geometry. **Variations** compares five seeds, incremented by 137 with wrapping at 999999. Click an asset to keep its seed. Drag to orbit and scroll to zoom.
+The seed, plane cuts/detail, irregularity/distortion, and bevel controls generate the geometry. **Variations** compares five seeds, incremented by 137 with wrapping at 999999. Click an asset to keep its seed. Paths use a single layout; change Seed to generate another variation. Drag to orbit and scroll to zoom.
+
+## Terrain and paths
+
+The **Terrain** library adds cliff faces, corners, terraces, overhangs, tapered/split/stacked rock pillars, round/hex/oval/triangle/L platforms, and wide/curved/switchback/broken ramps. They retain the original slate and limestone look and support all 25 materials. Lower Irregularity and Displacement to keep walking surfaces clean.
+
+Open **Path** for five styles: stepping stones, fitted bricks, fitted cobbles, wooden planks, and object scatter. Drag 2–12 numbered points in the SVG top view, use arrow keys (Shift for larger steps), or enter X/Z coordinates from −12 to 12. Add, insert, remove, and reset points. Closed loop is disabled with two points, and moves that collapse neighboring points are rejected. Width, size, gap, thickness, smoothness, lateral offset, and seeded variation update the generated layout.
+
+Fitted cobbles use shared Voronoi boundaries and real mortar gaps. Bricks retain staggered rows, with overlaps fitted around bends. **Scatter objects** accepts any of the 74 individual objects and preserves its component materials, tool options, and lathe profile. Paths retain world dimensions and use a single-layout view. The preview caps layouts at 128 mesh pieces and 80,000 triangles; the status line explains density adjustments, truncation, and skipped placements. See the [complete path guide](PATHS.md) for each control and its range.
 
 ## Materials and noise
 
@@ -72,7 +82,7 @@ The **Material** inspector contains **Outer** and **Inner** tabs. Each has indep
 
 The integration uses **@dgreenheck/three-pinata 2.0.1** for real fracture geometry and **Rapier 0.20.0** for rigid bodies, ground collisions, and fragment collisions. A worker performs fracture calculations, leaving the main thread available for the UI. Physics remains on the main thread. Fracture-pattern settings apply to the next hit; reset for direct comparisons. Material and physics controls update the current preview.
 
-Assembly parts are processed as separate closed volumes, rather than merging overlapping blocks into a non-manifold mesh. Only the selected part is fractured on a tap; untouched parts remain fixed. The demo allows 2–48 requested fragments per hit, 1–4 fracture generations, and up to 160 live pieces (120 by default). Worker jobs have a 15-second timeout and results over 100,000 triangles are rejected while retaining the source piece. Convex-hull collision shapes approximate concave displaced pieces. Approximate Voronoi can create overlapping fragments. The source geometry and shared material instances are retained for reset.
+Assembly parts are processed as separate closed volumes, rather than merging overlapping blocks into a non-manifold mesh. Only the selected part is fractured on a tap; untouched parts remain fixed. The demo allows 2–48 requested fragments per hit, 1–4 fracture generations, and up to 160 live pieces (120 by default). Enabling a path, or switching into one while destruction is already active, raises the limit to 160 if needed; a dense path still has limited room for additional fragments. Worker jobs have a 15-second timeout and results over 100,000 triangles are rejected while retaining the source piece. Convex-hull collision shapes approximate concave displaced pieces. Approximate Voronoi can create overlapping fragments. The source geometry and shared material instances are retained for reset.
 
 Ground planar reflections include the current debris. Turning reflections off avoids the additional reflection render. This integration does not establish physical-phone frame-time or thermal performance.
 
@@ -88,7 +98,7 @@ The sixteen public WAVs are generated by `scripts/generate-public-audio.mjs`. Th
 
 ## Real geometry displacement
 
-The **Shape** inspector contains **Displacement** and an independent **Shape noise scale**. Nonzero displacement subdivides the mesh within a 36,000-triangle budget, moves vertices with a coherent seeded field, recalculates normals, and preserves flat grounding. This changes silhouettes and cast shadows. The same spatial field moves duplicate boundary vertices consistently to avoid opening seams.
+The **Shape** inspector contains **Displacement** and an independent **Shape noise scale**. For individual objects, nonzero displacement subdivides the mesh within a 36,000-triangle budget, moves vertices with a coherent seeded field, recalculates normals, and preserves flat grounding. Path paving uses bounded vertical relief on its own closed meshes and shares the 80,000-triangle path budget; repeated objects use their source generator’s displacement. This changes silhouettes and cast shadows. The same spatial field moves duplicate boundary vertices consistently to avoid opening seams.
 
 Displacement zero uses the cheaper original meshes. Nonzero displacement rebuilds geometry when its settings change; it is not evaluated every animation frame. Five displaced variations can take longer to regenerate. The triangle counter and generation timing show the current cost. This is not physical-device performance validation.
 
@@ -121,11 +131,11 @@ A normal map changes lighting, while displacement moves vertices. Three's GPU di
 
 ## Save, restore, and reuse
 
-**File → Save recipe** downloads a version 4 JSON recipe containing shape, seed, geometry, spline profile, tool variants, independent outer/inner materials for every part, channel views, lighting, ground, and fracture settings. Fracture recipes restore the intact asset, ready for a new test; they do not serialize moving debris. **File → Load recipe** or drag-and-drop restores it. Versions 1–3 are accepted with defaults for newly introduced controls. Camera position, turntable, wireframe, active inspector, and comparison mode are not serialized.
+**File → Save recipe** downloads a version 5 JSON recipe containing shape, seed, geometry, lathe profile, tool variants, path points and layout settings, repeated source object, independent outer/inner materials for every part, channel views, lighting, ground, and fracture settings. Fracture recipes restore the intact asset, ready for a new test; they do not serialize moving debris. **File → Load recipe** or drag-and-drop restores it. Versions 1–5 are accepted with defaults for newly introduced controls. Camera position, turntable, wireframe, active inspector, and comparison mode are not serialized.
 
 **File → Save image** downloads the current viewport, including floor and reflections, as a PNG. The app currently exports recipes and PNGs. It does not export GLB or baked texture maps.
 
-The reusable modules are `src/geometry.js`, `src/material.js`, `src/ground.js`, and `src/fracture.js`. Fracture worker, attribute recovery, and panel adapters live beside them. `src/catalog.js` contains UI labels and curated presets.
+The reusable modules are `src/geometry.js`, `src/material.js`, `src/ground.js`, and `src/fracture.js`. Fracture worker, attribute recovery, and panel adapters live beside them. `src/catalog.js` contains UI labels and curated presets. Terrain layouts live in `src/terrain-geometry.js`; `src/path-geometry.js` supplies the route sampler and fitted or repeated layouts without normalizing their world scale.
 
 ```js
 import { buildAsset, disposeAsset } from './geometry.js';
